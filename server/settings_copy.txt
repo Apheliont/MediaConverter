@@ -1,0 +1,15 @@
+{
+  "uploadPath": "\\\\192.11.187.185",
+  "worker": {
+    "path": "/worker",
+    "autoConnect": "false",
+    "reconnection": "true",
+    "reconnectionDelay": "1000"
+  },
+  "database": {
+    "database": "media_converter",
+    "user": "root",
+    "password": "Jd8#jn@h10&92gAeVb",
+    "host": "database"
+  }
+}
