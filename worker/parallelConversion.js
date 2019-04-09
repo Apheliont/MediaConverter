@@ -94,7 +94,7 @@ module.exports = class ParallelConverter extends EventEmitter {
     // вырезаем все неизвестные стримы т.к они приведут к ошибке кодирования
     if (this.options.badStreams.length > 0) {
       this.options.badStreams.forEach(index => {
-        outputOptions.push(`-map -0:${index}`);
+        outputOptions.push(`-map -0:${index}?`);
       });
     }
 

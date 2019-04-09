@@ -77,7 +77,8 @@ function getOptions({ metadata, extension }) {
     // проверяем если контейнер является закрытым для кодирования в него
     if (
       firstAudioStream.codec_name === "pcm_bluray" ||
-      [".m2ts", ".m2p"].includes(extension)
+      [".m2ts", ".m2p"].includes(extension) ||
+      videoStream.codec_name === 'dvvideo'
     ) {
       options.badContainer = true;
     }
