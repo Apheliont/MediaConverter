@@ -125,7 +125,10 @@ io.on("connection", socket => {
       ).path;
 
       console.log("----------------------------------------------");
-      console.log("Исходный файл: ", `${sourcePath}${fileName}${extension}`);
+      console.log(
+        "Исходный файл: ",
+        `${sourcePath}\\${fileName}${extension}`
+      );
       console.log("Путь назначения: ", destinationPath);
       console.log("----------------------------------------------");
 

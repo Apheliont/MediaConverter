@@ -50,6 +50,7 @@ function getOptions({ metadata, extension }) {
   options.changeStreams = false;
   options.badContainer = false;
   options.badStreams = [];
+  options.timeCodeStream = false;
   options.aspectRatio = {
     definedAspect: null,
     SAR: null,
@@ -78,7 +79,7 @@ function getOptions({ metadata, extension }) {
     if (
       firstAudioStream.codec_name === "pcm_bluray" ||
       [".m2ts", ".m2p"].includes(extension) ||
-      videoStream.codec_name === 'dvvideo'
+      videoStream.codec_name === "dvvideo"
     ) {
       options.badContainer = true;
     }
@@ -114,6 +115,9 @@ function getOptions({ metadata, extension }) {
   // ищем все неопознанные стримы которые будем вырезать и записываем их
   // индексы
   metadata.streams.forEach(stream => {
+    if (stream.codec_tag_string === "tmcd") {
+      options.timeCodeStream = true;
+    }
     if (stream.codec_name === "unknown") {
       options.badStreams.push(+stream.index);
     }

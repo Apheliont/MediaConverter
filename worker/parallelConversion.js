@@ -60,6 +60,8 @@ module.exports = class ParallelConverter extends EventEmitter {
 
     if (this.options.changeStreams) {
       outputOptions.push(...["-map v:0", "-map a:1?", "-map a:0"]);
+    } else {
+      outputOptions.push("-map 0");
     }
 
     if (this.options.partialTranscode.isValid) {
@@ -74,21 +76,15 @@ module.exports = class ParallelConverter extends EventEmitter {
     if (this.options.badContainer) {
       inputOptions.push("-fflags +genpts");
       outputOptions.push(
-        ...[
-          "-acodec pcm_s24le",
-          "-ar 48000",
-          "-ab 1152k",
-          "-c:v copy"
-        ]
+        ...["-acodec pcm_s24le", "-ar 48000", "-ab 1152k", "-c:v copy"]
       );
-    }
-
-    if (outputOptions.length === 0) {
-      outputOptions.push("-map 0");
-    }
-
-    if (!this.options.badContainer) {
+    } else {
       outputOptions.push("-c copy");
+    }
+
+    // вырезаем таймкод поток
+    if (this.options.timeCodeStream) {
+      outputOptions.push(`-write_tmcd 0`);
     }
 
     // вырезаем все неизвестные стримы т.к они приведут к ошибке кодирования
@@ -102,6 +98,7 @@ module.exports = class ParallelConverter extends EventEmitter {
       this.tempDir,
       `${this.fileName}${this.extension}`
     );
+
     return new Promise((resolve, reject) => {
       const command = new FfmpegCommand(this.originalFile)
         .on("end", () => {
@@ -109,7 +106,6 @@ module.exports = class ParallelConverter extends EventEmitter {
           resolve();
         })
         .on("error", (err, stdout, stderr) => {
-          console.log("Ошибка в setKeyFrames:", stderr);
           reject(err);
         })
         .inputOptions(inputOptions)
@@ -242,6 +238,7 @@ module.exports = class ParallelConverter extends EventEmitter {
       const command = new FfmpegCommand()
         .input(filesFormated)
         .on("end", () => {
+          process.chdir(path.join(this.tempDir, ".."));
           this.command.delete(command);
           resolve();
         })
@@ -252,6 +249,7 @@ module.exports = class ParallelConverter extends EventEmitter {
           );
         })
         .on("error", (err, stdout, stderr) => {
+          process.chdir(path.join(this.tempDir, ".."));
           console.log("Ошибка в mergeFiles", stderr);
           reject(err);
         })
@@ -274,7 +272,7 @@ module.exports = class ParallelConverter extends EventEmitter {
       return await this.mergeFiles(files);
     } catch (e) {
       // если ошибка связана с отменой файла то это ОК, не пробрасываем ее дальше
-      if (e.message.split(" ").includes("SIGKILL")) {
+      if (e.message && e.message.split(" ").includes("SIGKILL")) {
         console.log("Файл был отменен пользователем!");
       } else {
         console.log("Ошибка в parallelConversion - startProcess", e.message);
