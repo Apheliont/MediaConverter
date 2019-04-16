@@ -1,7 +1,6 @@
 const { pool } = require('./main');
 const { workerModel, fileModel } = require("../models/fileWorkerFusion");
 
-
 const createFilesQuery = `CREATE TABLE IF NOT EXISTS files(
     id INT AUTO_INCREMENT PRIMARY KEY,
     fileName VARCHAR(255) NOT NULL,

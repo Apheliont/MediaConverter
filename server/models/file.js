@@ -18,18 +18,42 @@ module.exports = (function() {
       size,
       category,
       status = 3,
-      sourcePath = '', // если поле пустое то воркер возмет дефолтный путь для uploadFiles
+      stage = 0,
+      sourcePath = "", // если поле пустое то воркер возмет дефолтный путь для uploadFiles
       startTime = "00:00:00",
       endTime = "00:00:00",
-      workerID = null,
-      duration = null
+      workerID = undefined,
+      duration = undefined
     }) {
       this.id = id;
+      this.stage_0 = {
+        fileName,
+        extension,
+        size,
+        sourcePath,
+        startTime,
+        endTime,
+      };
+      this.stage_1 = {
+        keyFrameInterval: undefined,
+        totalParts: undefined,
+        extension: undefined,
+        sourcePath: undefined,
+        workerID: undefined
+      };
+      this.stage_2 = {
+
+      };
+      this.stage_3 = {
+
+      };
+
       this.fileName = fileName;
       this.extension = extension;
       this.size = size;
       this.category = category;
       this.status = status; // 0 - OK, 1 - ERR, 2 - ENCODING, 3 - PENDING, 4 - LOCK(PREPARING)
+      this.stage = stage; // Это этап кодирования; 0 - нетронутый, 1 - была подготовка, 2 - был полностью откодирован но не склеин, 3 - полностью готов
       this.sourcePath = sourcePath;
       this.startTime = startTime;
       this.endTime = endTime;
@@ -118,6 +142,7 @@ module.exports = (function() {
       file.status = status;
       // делаем запись в БД
       let timeStamp = "";
+
       if (status === 2) {
         timeStamp = "processing_at";
       } else {

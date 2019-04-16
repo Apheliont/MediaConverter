@@ -1,5 +1,6 @@
 const io = require("socket.io-client");
 const db = require("../database/main");
+const EventEmitter = require("events");
 let { informClients } = require("../socket.io-server");
 const informAboutWorker = informClients("WORKERINFO");
 const informAboutFile = informClients("FILEINFO");
@@ -11,6 +12,40 @@ module.exports = (function() {
   const lockTime = 5000; // время на которое лочится воркер
   const outerMethods = {};
 
+  const commonData = new class extends EventEmitter {
+    constructor() {
+      super();
+      this.coresPerWorker = {};
+    }
+
+    getTotalCores() {
+      return Object.values(this.coresPerWorker).reduce((sum, next) => {
+        return sum + next;
+      }, 0);
+    }
+
+    addWorkerCores({ id, cores }) {
+      id = parseInt(id);
+      cores = parseInt(cores);
+      if (
+        Number.isInteger(id) &&
+        Number.isInteger(cores) &&
+        this.coresPerWorker[id] !== cores
+      ) {
+        this.coresPerWorker[id] = cores;
+        this.emit("totalCoresChanged");
+      }
+    }
+
+    removeWorkerCores(id) {
+      id = parseInt(id);
+      if (Number.isInteger(id) && id in this.coresPerWorker) {
+        delete this.coresPerWorker[id];
+        this.emit("totalCoresChanged");
+      }
+    }
+  }();
+
   class WorkerNode {
     constructor(data) {
       this.id = data.id;
@@ -18,9 +53,13 @@ module.exports = (function() {
       this.port = data.port;
       this.name = data.name;
       this.description = data.description;
-      this.tempFolder = data.tempFolder;
-      this.sourceFolder = data.sourceFolder;
+      this.tempFolder = data.tempFolder; // УДАЛИТЬ и из ФРОНТА!
+      // поменяй название во фронте
+      this.sourcePath = data.sourceFolder; // путь по умолчанию для файлов закачанных через веб,
       this.options = data.options;
+      this.sysInfo = {
+        physicalCores: 0
+      };
       this.condition = {
         message: "Неизвестно",
         files: new Set(),
@@ -37,10 +76,6 @@ module.exports = (function() {
         this.condition.status = 1;
         this.condition.message = "Подключен";
 
-        // передать воркеру его настройки
-        this.updateSettings();
-        this.updateCategories();
-
         // сообщаем пользователям состояние воркера
         informAboutWorker("WORKERINFO", this.getCondition());
       });
@@ -53,17 +88,35 @@ module.exports = (function() {
       this.socket.on("disconnect", reason => {
         this.condition.status = 0;
         this.condition.message = reason;
+        // обновляем глобальный синглтон содержащий общее число ядер
+        commonData.removeWorkerCores(this.id);
+
         informAboutWorker("WORKERINFO", this.getCondition());
       });
 
       this.socket.on("error", err => {
         this.condition.status = 2;
         this.condition.message = err.message;
+        // обновляем глобальный синглтон содержащий общее число ядер
+        commonData.removeWorkerCores(this.id);
+
         informAboutWorker("WORKERINFO", this.getCondition());
       });
 
       this.socket.on("initState", data => {
-        this.changeCondition(data);
+        console.log('init state: ', data);
+        this.changeCondition(data.condition);
+        // получаем инфу о физических ядрах и т.д
+        this.updateSysInfo(data.sysInfo);
+
+        // обновляем глобальный синглтон содержащий общее число ядер
+        commonData.addWorkerCores({ id: this.id, cores: data.sysInfo.physicalCores });
+
+        // теперь можно передать воркеру его настройки вместе с общим числом
+        // физических ядер в кластере
+        this.updateSettings();
+        this.updateCategories();
+
         informAboutWorker("WORKERINFO", this.getCondition());
         //нужно удалить все файлы которые начали кодироваться
         //но возможно стали битыми по причине что воркер упал
@@ -89,13 +142,15 @@ module.exports = (function() {
       });
       // ------------- file events ---------------
       this.socket.on("updateFile", data => {
-        outerMethods["updateFile"](data);
+        console.log('updatefile: ', data);
+        //outerMethods["updateFile"](data);
       });
       this.socket.on("fileProgress", data => {
         informAboutFile("UPDATEFILE", data);
       });
       this.socket.on("changeFileStatus", data => {
         outerMethods["changeStatus"](data);
+        console.log("Change file status!: ", data);
       });
     }
 
@@ -112,11 +167,15 @@ module.exports = (function() {
       this.condition.files = new Set(files);
     }
 
+    updateSysInfo(data) {
+      this.sysInfo.physicalCores = +data.physicalCores;
+    }
+
     updateSettings() {
       this.socket.emit("settings", {
         workerID: this.id,
-        tempFolder: this.tempFolder,
-        uploadPath: this.sourceFolder
+        totalPhysicalCores: commonData.getTotalCores(),
+        sourcePath: this.sourcePath
       });
     }
 
@@ -167,11 +226,20 @@ module.exports = (function() {
     }
     //------------------------------
     transcode(file) {
-      outerMethods["updateFile"]({
-        id: file.id,
-        workerID: this.id
-      });
-      this.socket.emit("transcode", file);
+      console.log('transcode: ', file);
+      // в зависимости от того на каком этапе находится файл принимаем решения
+      switch(file.stage) {
+        case 0:
+              outerMethods["updateFile"]({
+                id: file.id,
+                workerID: this.id
+              });
+              this.socket.emit("analyzeAndPrepare", file);
+              break;
+        case 1:
+        case 2:
+      }
+      // this.socket.emit("transcode", file);
     }
 
     stopConversion() {
@@ -182,7 +250,12 @@ module.exports = (function() {
   return new class {
     constructor() {
       this.storage = [];
+      // слушаем изменения общего числа ядер и оповещаем все воркеры
+      commonData.on("totalCoresChanged", () => {
+        this.storage.forEach(worker => worker.updateSettings());
+      });
     }
+
     addMethod(name, method) {
       outerMethods[name] = method;
     }

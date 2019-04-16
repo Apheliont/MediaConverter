@@ -9,8 +9,10 @@ async function uploadFile(req, res) {
     informClients("ADDFILE", fileModel.getFileById(id));
     // пытаемся начать кодирование если есть свободный воркер
     const idleWorker = workerModel.getIdleWorker();
+    console.log("Idle worker:", idleWorker.id);
     if (idleWorker) {
       const pendingFile = fileModel.getPendingFile();
+      console.log("pending file: ", pendingFile.fileName);
       if (pendingFile) {
         idleWorker.transcode(pendingFile);
       }
