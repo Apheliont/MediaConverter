@@ -2,15 +2,16 @@ const ffprobe = require("ffprobe-static");
 const ffmpeg = require("ffmpeg-static");
 const FfmpegCommand = require("fluent-ffmpeg");
 const path = require("path");
-const EventEmitter = require("events");
+const settings = require("../settings");
+const io = require("../socket.io-server");
 
 // Setting paths for FF libraries
 FfmpegCommand.setFfmpegPath(ffmpeg.path);
 FfmpegCommand.setFfprobePath(ffprobe.path);
 
-module.exports = class Prepare extends EventEmitter {
+module.exports = class Prepare {
   constructor({ destinationPath, fullFileInfo, totalPhysicalCores }) {
-    super();
+    this.id = fullFileInfo.id;
     this.destinationPath = destinationPath;
     this.fileName = fullFileInfo.fileName;
     this.originalExtension = fullFileInfo.extension;
@@ -18,8 +19,6 @@ module.exports = class Prepare extends EventEmitter {
     this.duration = fullFileInfo.duration;
     this.options = fullFileInfo.options;
     this.totalPhysicalCores = totalPhysicalCores;
-    //this.command = new Set();
-    console.log("tempPath:", destinationPath);
   }
 
   get keyFrameInterval() {
@@ -38,7 +37,7 @@ module.exports = class Prepare extends EventEmitter {
     );
   }
 
-  setKeyFrames() {
+  prepare() {
     const outputOptions = [];
     const inputOptions = [];
 
@@ -82,27 +81,31 @@ module.exports = class Prepare extends EventEmitter {
       this.destinationPath,
       `${this.fileName}${this.extension}`
     );
-    console.log("file to save path: ", fileToSave);
 
     return new Promise((resolve, reject) => {
       const command = new FfmpegCommand(this.originalFile)
         .on("end", () => {
-          //this.command.delete(command);
+          // удаляем объект command который нужен для остановки кодирования
+          settings.condition.deleteFileCommand(this.id, command);
           // возвращаем доп данные о файле
-          resolve(
-            Object.assign(
-              {},
-              {
-                keyFrameInterval: this.keyFrameInterval,
-                totalParts: Math.floor(this.duration / this.keyFrameInterval),
-                extension: this.extension,
-                sourcePath: this.destinationPath
-              }
-            )
-          );
+          resolve({
+            keyFrameInterval: this.keyFrameInterval,
+            extension: this.extension,
+            sourcePath: this.destinationPath,
+            options: this.options
+          });
+        })
+        .on("progress", progress => {
+          io.emit("workerResponse", {
+            fileProgress: {
+              id: this.id,
+              progress: Math.ceil(progress.percent)
+            }
+          });
         })
         .on("error", (err, stdout, stderr) => {
-          reject(err);
+          settings.condition.deleteFileCommand(this.id, command);
+          reject(stderr);
         })
         .inputOptions(inputOptions)
         .outputOptions([
@@ -112,27 +115,8 @@ module.exports = class Prepare extends EventEmitter {
           "-sn"
         ])
         .save(fileToSave);
-      //this.command.add(command);
+      // добавляем в объект command для последующей возможности остановить процесс кодирования
+      settings.condition.addFileCommand(this.id, command);
     });
-  }
-
-  //   stopProcess() {
-  //     if (this.command.size > 0) {
-  //       this.command.forEach(command => command.kill());
-  //     }
-  //   }
-
-  async start() {
-    try {
-      return await this.setKeyFrames();
-    } catch (e) {
-      // если ошибка связана с отменой файла то это ОК, не пробрасываем ее дальше
-      if (e.message && e.message.split(" ").includes("SIGKILL")) {
-        console.log("Файл был отменен пользователем!");
-      } else {
-        console.log("Ошибка в prepare", e.message);
-        throw e;
-      }
-    }
   }
 };

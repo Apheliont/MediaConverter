@@ -31,18 +31,10 @@
             ></v-text-field>
             <v-text-field
               :disabled="!isEditing"
-              v-model="tempWorker.sourceFolder"
+              v-model="tempWorker.sourcePath"
               @input="dataChanged"
-              :rules="tempFolderRules"
+              :rules="pathRules"
               label="Папка с исходниками"
-              required
-            ></v-text-field>
-            <v-text-field
-              :disabled="!isEditing"
-              v-model="tempWorker.tempFolder"
-              @input="dataChanged"
-              :rules="tempFolderRules"
-              label="Папка для временных файлов"
               required
             ></v-text-field>
             <v-switch
@@ -82,7 +74,7 @@
         <v-card-title>Инфо:</v-card-title>
         <v-card-text>
           <v-text-field readonly outline label="Id" :value="id ? id : '-'"></v-text-field>
-          <v-text-field readonly outline label="В работе" :value="isBusy"></v-text-field>
+          <v-text-field readonly outline label="CPU ядра: доступно / всего" :value="coreAvailability"></v-text-field>
           <v-text-field readonly outline label="Состояние" :value="connectionMessage"></v-text-field>
         </v-card-text>
       </v-card>
@@ -112,13 +104,12 @@ export default {
         name: "",
         host: "",
         port: "",
-        sourceFolder: "",
-        tempFolder: "",
+        sourcePath: "",
         autoConnect: true,
         description: ""
       },
       valid: true,
-      tempFolderRules: [v => !!v || "Укажите папку"],
+      pathRules: [v => !!v || "Укажите папку"],
       hostRules: [v => !!v || "Укажите хост"],
       nameRules: [v => !!v || "Укажите имя"],
       portRules: [
@@ -136,7 +127,7 @@ export default {
       return this.workers.find(worker => worker.id === this.id);
     },
     connectionState() {
-      const status = this.worker.condition.status;
+      const status = this.worker.state.status;
       if (status === 0) {
         return "подключить";
       }
@@ -146,20 +137,20 @@ export default {
       return 'ошибка';
     },
     connectionStatus() {
-      return this.worker.condition.status;
+      return this.worker.state.status;
     },
     connectionMessage() {
-      switch (this.worker.condition.message) {
+      switch (this.worker.state.message) {
         case "transport close":
           return "Разрыв связи";
         case "io client disconnect":
           return "Отключён";
         default:
-          return this.worker.condition.message;
+          return this.worker.state.message;
       }
     },
-    isBusy() {
-      return this.worker.condition.isBusy ? "Да" : "Нет";
+    coreAvailability() {
+    return `${this.worker.state.idleCores} / ${this.worker.state.physicalCores}`
     }
   },
   watch: {
@@ -191,8 +182,7 @@ export default {
       props.name = this.worker.name;
       props.host = this.worker.host;
       props.port = this.worker.port;
-      props.tempFolder = this.worker.tempFolder;
-      props.sourceFolder = this.worker.sourceFolder;
+      props.sourcePath = this.worker.sourcePath;
       props.autoConnect = this.worker.autoConnect;
       props.description = this.worker.description;
 

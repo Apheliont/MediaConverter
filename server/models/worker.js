@@ -3,25 +3,38 @@ const db = require("../database/main");
 const EventEmitter = require("events");
 let { informClients } = require("../socket.io-server");
 const informAboutWorker = informClients("WORKERINFO");
-const informAboutFile = informClients("FILEINFO");
 const settings = require("./settings");
 const category = require("./category");
 
 module.exports = (function() {
-  let lockWorkerTimerId = {}; // хранит ID таймеров залоченых воркеров
-  const lockTime = 5000; // время на которое лочится воркер
+  const lockWorkerTimerId = {}; // хранит ID таймеров залоченых воркеров
+  const lockTime = 7000; // время на которое лочится воркер
   const outerMethods = {};
 
-  const commonData = new class extends EventEmitter {
+  // используется для хранения и оповещения об изменении данных общих для всех воркеров
+  const commonData = new (class extends EventEmitter {
     constructor() {
       super();
-      this.coresPerWorker = {};
+      this.coresPerWorker = {}; // key - worker_id, value - кол-во ядер
+      this.tempFolderName = settings.get("tempFolderName");
+      // если была изменена tempFolder то надо разослать инфу по всем воркерам
+      settings.on("updateSettings", () => {
+        const newTempFolderName = settings.get("tempFolderName");
+        if (newTempFolderName !== this.tempFolderName) {
+          this.tempFolderName = newTempFolderName;
+          this.emit("commonDataChanged");
+        }
+      });
     }
 
     getTotalCores() {
       return Object.values(this.coresPerWorker).reduce((sum, next) => {
         return sum + next;
       }, 0);
+    }
+
+    getTempFolderName() {
+      return this.tempFolderName;
     }
 
     addWorkerCores({ id, cores }) {
@@ -33,7 +46,7 @@ module.exports = (function() {
         this.coresPerWorker[id] !== cores
       ) {
         this.coresPerWorker[id] = cores;
-        this.emit("totalCoresChanged");
+        this.emit("commonDataChanged");
       }
     }
 
@@ -41,29 +54,33 @@ module.exports = (function() {
       id = parseInt(id);
       if (Number.isInteger(id) && id in this.coresPerWorker) {
         delete this.coresPerWorker[id];
-        this.emit("totalCoresChanged");
+        this.emit("commonDataChanged");
       }
     }
-  }();
+  })();
 
-  class WorkerNode {
+  class WorkerNode extends EventEmitter {
     constructor(data) {
+      super();
       this.id = data.id;
       this.host = data.host;
       this.port = data.port;
       this.name = data.name;
       this.description = data.description;
-      this.tempFolder = data.tempFolder; // УДАЛИТЬ и из ФРОНТА!
-      // поменяй название во фронте
-      this.sourcePath = data.sourceFolder; // путь по умолчанию для файлов закачанных через веб,
+      this.sourcePath = data.sourcePath; // путь по умолчанию для файлов закачанных через веб,
       this.options = data.options;
-      this.sysInfo = {
-        physicalCores: 0
-      };
-      this.condition = {
+      this.state = {
         message: "Неизвестно",
-        files: new Set(),
-        isBusy: false,
+        fileIDs: {}, // key - fileID, value - кол-во частей которые были отправлены на обработчик
+        get idleCores() {
+          const idleCores =
+            this.physicalCores -
+            Object.values(this.fileIDs).reduce((sum, next) => {
+              return sum + next;
+            }, 0);
+          return idleCores >= 0 ? idleCores : 0;
+        },
+        physicalCores: 0,
         status: 0 // 0 - disconnect; 1 - online; 2 - crashed;
       };
       this.socket = io(
@@ -73,11 +90,11 @@ module.exports = (function() {
 
       // установка обработчиков событий
       this.socket.on("connect", () => {
-        this.condition.status = 1;
-        this.condition.message = "Подключен";
-
+        this.state.status = 1;
+        this.state.message = "Подключен";
+        this.state.fileIDs = {}; // обнуляем счетчик кодируемых файлов
         // сообщаем пользователям состояние воркера
-        informAboutWorker("WORKERINFO", this.getCondition());
+        informAboutWorker("WORKERINFO", this.getInfo());
       });
 
       // слушаем если изменились категории
@@ -86,96 +103,109 @@ module.exports = (function() {
       category.on("updateCategories", this.updateCategories.bind(this));
 
       this.socket.on("disconnect", reason => {
-        this.condition.status = 0;
-        this.condition.message = reason;
+        this.state.status = 0;
+        this.state.message = reason;
         // обновляем глобальный синглтон содержащий общее число ядер
         commonData.removeWorkerCores(this.id);
 
-        informAboutWorker("WORKERINFO", this.getCondition());
+        // нужно взять ID всех файлов которые обрабатывал воркер до дисконнекта и
+        // поменять им состояние на "в ожидании"
+        const fileIDs = Object.keys(this.state.fileIDs).map(key =>
+          parseInt(key)
+        );
+        outerMethods["releaseFiles"](fileIDs, this.id);
+        // убираем все ID из текущих кодируемых воркером
+        this.state.fileIDs = {};
+        informAboutWorker("WORKERINFO", this.getInfo());
       });
 
       this.socket.on("error", err => {
-        this.condition.status = 2;
-        this.condition.message = err.message;
+        this.state.status = 2;
+        this.state.message = err.message;
         // обновляем глобальный синглтон содержащий общее число ядер
         commonData.removeWorkerCores(this.id);
-
-        informAboutWorker("WORKERINFO", this.getCondition());
+        const fileIDs = Object.keys(this.state.fileIDs).map(key =>
+          parseInt(key)
+        );
+        outerMethods["releaseFiles"](fileIDs, this.id);
+        // убираем все ID из текущих кодируемых воркером
+        this.state.fileIDs = {};
+        informAboutWorker("WORKERINFO", this.getInfo());
       });
 
-      this.socket.on("initState", data => {
-        console.log('init state: ', data);
-        this.changeCondition(data.condition);
-        // получаем инфу о физических ядрах и т.д
-        this.updateSysInfo(data.sysInfo);
-
-        // обновляем глобальный синглтон содержащий общее число ядер
-        commonData.addWorkerCores({ id: this.id, cores: data.sysInfo.physicalCores });
-
-        // теперь можно передать воркеру его настройки вместе с общим числом
-        // физических ядер в кластере
-        this.updateSettings();
-        this.updateCategories();
-
-        informAboutWorker("WORKERINFO", this.getCondition());
-        //нужно удалить все файлы которые начали кодироваться
-        //но возможно стали битыми по причине что воркер упал
-        const files = outerMethods["getFiles"]();
-        const filteredFiles = files.filter(file => {
-          return file.workerID === this.id && file.status === 2;
-        });
-        filteredFiles.forEach(file => {
-          if (!this.condition.files.has(file.id)) {
-            outerMethods["changeStatus"]({
-              id: file.id,
-              status: 1
-            });
+      // единое событие от воркера внутри которого могут содержаться отдельные объекты
+      // с разным назначением. Это сделано как альтернатива транзакции, эти события
+      // взаимосвязаны, не должно быть случая когда часть из них дошли а часть нет
+      this.socket.on("workerResponse", data => {
+        // обновляем инфу о файле
+        if ("fileInfo" in data && "id" in data.fileInfo) {
+          if ("parts" in data.fileInfo) {
+            const fileID = data.fileInfo.id;
+            if (fileID in this.state.fileIDs) {
+              // кол-во частей откодированных воркером
+              const parts = data.fileInfo.parts;
+              this.state.fileIDs[fileID] -= parts;
+              if (this.state.fileIDs[fileID] <= 0) {
+                delete this.state.fileIDs[fileID];
+              }
+            }
           }
-        });
-        this.tryTranscodeNext();
-      });
-
-      this.socket.on("isWorkerBusy", data => {
-        this.changeCondition(data);
-        informAboutWorker("WORKERINFO", this.getCondition());
-        this.tryTranscodeNext();
-      });
-      // ------------- file events ---------------
-      this.socket.on("updateFile", data => {
-        console.log('updatefile: ', data);
-        //outerMethods["updateFile"](data);
-      });
-      this.socket.on("fileProgress", data => {
-        informAboutFile("UPDATEFILE", data);
-      });
-      this.socket.on("changeFileStatus", data => {
-        outerMethods["changeStatus"](data);
-        console.log("Change file status!: ", data);
+          outerMethods["updateFile"](data.fileInfo);
+          this.emit("tryProcessNext");
+        }
+        // подверждаем получение воркером файла и лока ядер
+        if ("acknowledgement" in data) {
+          const ack = data.acknowledgement;
+          if ("worker_timerID" in ack) {
+            this.acknowledgeCores(ack["worker_timerID"]);
+          }
+          if ("file_timerID" in ack && "fileID" in ack) {
+            const file = outerMethods["getFileById"](ack.fileID);
+            if (file) {
+              file.acknowledgeFile(ack["file_timerID"]);
+            }
+          }
+        }
+        // обновляем инфу о физических ядрах воркера
+        if ("sysInfo" in data && "physicalCores" in data.sysInfo) {
+          const cores = +data.sysInfo.physicalCores;
+          // получаем инфу о физических ядрах
+          this.state.physicalCores = cores;
+          // обновляем глобальный синглтон содержащий общее число ядер
+          commonData.addWorkerCores({
+            id: this.id,
+            cores
+          });
+          // теперь можно передать воркеру его настройки вместе с общим числом
+          // физических ядер в кластере
+          this.updateSettings();
+          this.updateCategories();
+          this.emit("tryProcessNext");
+          // оповещаем фронт о ядрах воркера
+          informAboutWorker("WORKERINFO", this.getInfo());
+        }
+        // инфа о проценте готовности кодирования
+        if ("fileProgress" in data) {
+          // в объекте data содержится id файла, progress и опционально part - если стадия = 1
+          outerMethods["updateFileProgressById"](data.fileProgress);
+        }
       });
     }
 
-    getCondition() {
+    // для фронтенда
+    getInfo() {
       const worker = {};
       worker.id = this.id;
-      worker.condition = Object.assign({}, this.condition);
+      worker.state = Object.assign({}, this.state);
       return worker;
-    }
-
-    changeCondition({ isBusy, files }) {
-      this.unlockWorker();
-      this.condition.isBusy = isBusy;
-      this.condition.files = new Set(files);
-    }
-
-    updateSysInfo(data) {
-      this.sysInfo.physicalCores = +data.physicalCores;
     }
 
     updateSettings() {
       this.socket.emit("settings", {
         workerID: this.id,
         totalPhysicalCores: commonData.getTotalCores(),
-        sourcePath: this.sourcePath
+        sourcePath: this.sourcePath,
+        tempFolderName: commonData.getTempFolderName()
       });
     }
 
@@ -186,72 +216,61 @@ module.exports = (function() {
       });
     }
 
-    tryTranscodeNext() {
-      if (!this.condition.isBusy) {
-        const fileToTranscode = outerMethods["getPendingFile"]();
-        if (fileToTranscode) {
-          this.transcode(fileToTranscode);
-        }
-      }
-    }
-
     connect() {
       this.socket.open();
     }
-    // --------------------------------------------
 
     disconnect() {
       this.socket.close();
     }
 
     isReadyToServe() {
-      return this.condition.status === 1 && !this.condition.isBusy;
+      return this.state.status === 1 && this.state.idleCores > 0;
     }
 
-    lockWorker() {
-      this.condition.isBusy = true;
-      lockWorkerTimerId[this.id] = setTimeout(() => {
-        this.condition.isBusy = false;
+    // блокирует ядра определенного воркера для определенного файла,
+    // чтобы не было ошибок при асинхронном выполнении
+    // если блокирование успешно возвращаем timer_id, в противном случае -1
+    lockCores(fileID, cores) {
+      if (!this.isReadyToServe) return -1;
+      const timerID = Date.now();
+      // для контроля какие файлы кодирует воркер, записываем ID файла и число
+      // частей которые были отправлены воркеру этого файла
+      if (!(fileID in this.state.fileIDs)) {
+        this.state.fileIDs[fileID] = 0;
+      }
+      this.state.fileIDs[fileID] += cores;
+      // оповещаем фронт
+      informAboutWorker("WORKERINFO", this.getInfo());
+      lockWorkerTimerId[timerID] = setTimeout(() => {
+        this.state.fileIDs[fileID] -= cores;
+        if (this.state.fileIDs[fileID] <= 0) {
+          delete this.state.fileIDs[fileID];
+        }
+        delete lockWorkerTimerId[timerID];
+        informAboutWorker("WORKERINFO", this.getInfo());
+        this.emit("tryProcessNext");
       }, lockTime);
+      return timerID;
     }
 
-    unlockWorker() {
-      const timerId = lockWorkerTimerId[this.id];
-      if (timerId) {
-        clearTimeout(timerId);
-        delete lockWorkerTimerId[this.id];
-        return true;
+    acknowledgeCores(timerID) {
+      if (timerID in lockWorkerTimerId) {
+        clearTimeout(lockWorkerTimerId[timerID]);
+        delete lockWorkerTimerId[timerID];
       }
-      return false;
-    }
-    //------------------------------
-    transcode(file) {
-      console.log('transcode: ', file);
-      // в зависимости от того на каком этапе находится файл принимаем решения
-      switch(file.stage) {
-        case 0:
-              outerMethods["updateFile"]({
-                id: file.id,
-                workerID: this.id
-              });
-              this.socket.emit("analyzeAndPrepare", file);
-              break;
-        case 1:
-        case 2:
-      }
-      // this.socket.emit("transcode", file);
     }
 
-    stopConversion() {
-      this.socket.emit("stopConversion");
+    stopConversion(id) {
+      this.socket.emit("stopConversion", id);
     }
   }
 
-  return new class {
+  return new (class {
     constructor() {
       this.storage = [];
       // слушаем изменения общего числа ядер и оповещаем все воркеры
-      commonData.on("totalCoresChanged", () => {
+      commonData.on("commonDataChanged", () => {
         this.storage.forEach(worker => worker.updateSettings());
       });
     }
@@ -288,7 +307,11 @@ module.exports = (function() {
         const newWorker = Object.assign({}, data, { options }, { id });
         delete newWorker.autoConnect;
 
-        this.storage.push(new WorkerNode(newWorker));
+        // вешаем слушатель события tryProcessNext, которое будет вызываться каждый раз
+        // как у какого-либо воркера изменится состояние
+        const nwn = new WorkerNode(newWorker);
+        nwn.on("tryProcessNext", this.tryProcessNext.bind(this));
+        this.storage.push(nwn);
         if (data.autoConnect) {
           this.getWorkerById(id).connect();
         }
@@ -321,7 +344,7 @@ module.exports = (function() {
         const currentWorker = this.getWorkerById(id);
         for (let prop in payload) {
           if (
-            prop === "condition" ||
+            prop === "state" ||
             prop === "socket" ||
             prop === "id" ||
             prop === "options"
@@ -331,7 +354,7 @@ module.exports = (function() {
           currentWorker[prop] = payload[prop];
         }
         currentWorker.options.autoConnect = payload.autoConnect;
-        if (currentWorker.condition.status === 1) {
+        if (currentWorker.state.status === 1) {
           // делаем реконнект
           currentWorker.disconnect();
           setTimeout(() => {
@@ -356,7 +379,10 @@ module.exports = (function() {
           });
           delete worker.autoConnect;
           const newWorker = Object.assign({}, worker, { options });
-          this.storage.push(new WorkerNode(newWorker));
+          // создаем новую воркер ноду и вешаем обработчик
+          const nwn = new WorkerNode(newWorker);
+          nwn.on("tryProcessNext", this.tryProcessNext.bind(this));
+          this.storage.push(nwn);
           if (newWorker.options.autoConnect) {
             this.getWorkerById(worker.id).connect();
           }
@@ -371,11 +397,76 @@ module.exports = (function() {
       return this.storage.find(worker => worker.id === id);
     }
 
-    getIdleWorker() {
-      const idleWorker = this.storage.find(worker => worker.isReadyToServe());
-      if (idleWorker) {
-        idleWorker.lockWorker();
-        return idleWorker;
+    // функция возвращает сортированный массив массивов,
+    // где вложеный массив -> 0 элемент - объект Worker
+    // 1 элемент - число свободный ядер
+    getIdleWorkers() {
+      const idleWorkers = [];
+      this.storage.forEach(worker => {
+        if (worker.isReadyToServe()) {
+          idleWorkers.push(worker);
+        }
+      });
+      if (idleWorkers.length > 1) {
+        idleWorkers.sort((a, b) => a.state.idleCores - b.state.idleCores);
+      }
+      return idleWorkers;
+    }
+
+    // В этой функции ищем все ожидающие обработки файлы, берем все свободные ресурсы и лочим их под конкретный файл
+    // далее отправляем их в функцию process
+    tryProcessNext() {
+      let pendignFiles = outerMethods["getPendingFiles"]();
+      let idleWorkers = this.getIdleWorkers();
+      let partsToTranscode = [];
+      let file_timerID;
+      let worker_timerID;
+
+      while (pendignFiles.length !== 0 && idleWorkers.length !== 0) {
+        const worker = idleWorkers.pop();
+        const cores = worker.state.idleCores;
+        const file = pendignFiles.pop();
+        // вариант того что файлу нужно 1 ядро
+        if (file.stage === 0 || file.stage === 2) {
+          // подрузумевается что 1 ядро точно есть так как воркер попал в массив getIdleWorkers
+          // залочить файл и получить ID таймера, в надежде что это не -1
+          file_timerID = file.lockFile(worker.id);
+          // залочить ядро у воркера и получить ID таймера
+          worker_timerID = worker.lockCores(file.id, 1);
+          if (file_timerID === -1 || worker_timerID === -1) {
+            console.log(
+              "Что-то пошло не так в функции tryProcessNext, один из таймеров = -1"
+            );
+            return;
+          }
+        } else {
+          // вариант того что файл находится на стадии кодирования по частям
+          // получить части для кодирования (массив)
+          partsToTranscode = file.partsToTranscode();
+          // проверить что частей не больше чем свободных ядер
+          if (cores - partsToTranscode.length < 0) {
+            partsToTranscode = partsToTranscode.slice(0, cores);
+          }
+          // залочить все части и получить ID таймера, в надежде что это не -1
+          file_timerID = file.lockFile(worker.id, partsToTranscode);
+          // залочить ядра у воркера и получить ID таймера
+          worker_timerID = worker.lockCores(file.id, partsToTranscode.length);
+          if (file_timerID === -1 || worker_timerID === -1) {
+            console.log(
+              "Что-то пошло не так в функции tryProcessNext для множественного кодирования, один из таймеров = -1"
+            );
+            return;
+          }
+        }
+        // отправить файл на кодировку, предварительно трансформировав данные для воркера
+        worker.socket.emit("process", {
+          file: file.transformFileData(partsToTranscode),
+          file_timerID,
+          worker_timerID
+        });
+        // снова тащим массив ожидающих файлов и доступных ресурсов и пытаемся зайти в цикл
+        pendignFiles = outerMethods["getPendingFiles"]();
+        idleWorkers = this.getIdleWorkers();
       }
     }
 
@@ -404,5 +495,5 @@ module.exports = (function() {
         worker.disconnect();
       });
     }
-  }();
+  })();
 })();

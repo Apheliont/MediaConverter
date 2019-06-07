@@ -33,7 +33,7 @@ function checkFile(extension) {
 
 function getFileMetadata(file) {
   return new Promise((resolve, reject) => {
-    command = new FfmpegCommand(file).ffprobe((err, metadata) => {
+    new FfmpegCommand(file).ffprobe((err, metadata) => {
       if (err) {
         reject(err.message);
       }
@@ -45,7 +45,7 @@ function getFileMetadata(file) {
 function getOptions({ metadata, extension }) {
   // ищем все косяки исходного файла и регистрирум их в options
   const options = {};
-  options.metadata = metadata;
+  options.duration = metadata.format.duration;
   options.splitAudio = false;
   options.changeStreams = false;
   options.badContainer = false;

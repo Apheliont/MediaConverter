@@ -4,12 +4,6 @@ const express = require("express");
 const app = express();
 const bodyParser = require("body-parser");
 
-// const fs = require('fs');
-
-// const options = {
-//     key: fs.readFileSync('./cert/key.pem'),
-//     cert: fs.readFileSync('./cert/cert.pem')
-// };
 const server = require("http").createServer(app);
 
 const categoryRoutes = require("./routes/category");
@@ -17,6 +11,7 @@ const fileRoutes = require("./routes/file");
 const workerRoutes = require("./routes/worker");
 const settingsRoutes = require("./routes/settings");
 const logRoutes = require("./routes/log");
+const errorRoutes = require("./routes/error");
 
 const allowCrossDomain = function (req, res, next) {
     res.header("Access-Control-Allow-Origin", "*");
@@ -35,6 +30,7 @@ app.use("/api/files", fileRoutes);
 app.use("/api/workers", workerRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/logs", logRoutes);
+app.use("/api/errors", errorRoutes);
 
 app.get("*", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "index.html"));

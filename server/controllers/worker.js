@@ -48,13 +48,13 @@ function switchWorker(req, res) {
     const id = Number(req.params.id);
     const worker = workerModel.getWorkerById(id);
     if (worker) {
-      if (worker.condition.status === 0) {
+      if (worker.state.status === 0) {
         worker.connect();
         res.status(200).end();
-      } else if (worker.condition.status === 1) {
-        worker.disconnect();
-        res.status(200).end();
-      }
+      } else if (worker.state.status === 1) {
+               worker.disconnect();
+               res.status(200).end();
+             }
     } else {
       res.status(500).end();
     }

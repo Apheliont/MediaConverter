@@ -33,8 +33,8 @@
         >
           <v-list-tile-action>
             <v-icon
-              :color="`${worker.condition.status === 0 ? 'grey lighten-2' :
-             worker.condition.status === 1 ? 'light-green accent-4' : 'red'}`"
+              :color="`${worker.state.status === 0 ? 'grey lighten-2' :
+             worker.state.status === 1 ? 'light-green accent-4' : 'red'}`"
             >developer_board</v-icon>
           </v-list-tile-action>
           <v-list-tile-title v-text="worker.name"></v-list-tile-title>

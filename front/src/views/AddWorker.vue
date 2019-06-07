@@ -27,17 +27,10 @@
               required
             ></v-text-field>
             <v-text-field
-              v-model="worker.sourceFolder"
+              v-model="worker.sourcePath"
               @input="dataChanged"
-              label="Папка с исходниками"
-              :rules="tempFolderRules"
-              required
-            ></v-text-field>
-            <v-text-field
-              v-model="worker.tempFolder"
-              @input="dataChanged"
-              label="Папка для временных файлов"
-              :rules="tempFolderRules"
+              label="Путь до файлов закачанных через Web"
+              :rules="pathRules"
               required
             ></v-text-field>
             <v-switch
@@ -74,13 +67,12 @@ export default {
       name: "",
       host: "",
       port: "",
-      tempFolder: "",
-      sourceFolder: "",
+      sourcePath: "",
       autoConnect: false,
       description: ""
     },
     valid: true,
-    tempFolderRules: [v => !!v || "Укажите папку"],
+    pathRules: [v => !!v || "Укажите папку"],
     hostRules: [v => !!v || "Укажите хост"],
     nameRules: [v => !!v || "Укажите имя"],
     portRules: [

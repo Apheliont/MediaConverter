@@ -1,22 +1,10 @@
 const { fileModel, workerModel } = require("../models/fileWorkerFusion");
-let { informClients } = require("../socket.io-server");
-informClients = informClients("FILEINFO");
 
 async function uploadFile(req, res) {
   try {
-    const id = await fileModel.addFile(req.body);
-    // сразу оповещаем фронтенд новым файлом
-    informClients("ADDFILE", fileModel.getFileById(id));
-    // пытаемся начать кодирование если есть свободный воркер
-    const idleWorker = workerModel.getIdleWorker();
-    console.log("Idle worker:", idleWorker.id);
-    if (idleWorker) {
-      const pendingFile = fileModel.getPendingFile();
-      console.log("pending file: ", pendingFile.fileName);
-      if (pendingFile) {
-        idleWorker.transcode(pendingFile);
-      }
-    }
+    await fileModel.addFile(req.body);
+    // запускаем процесс попытки кодирования
+    workerModel.tryProcessNext();
   } catch (e) {
     res.status(500).send(e.message);
   }
@@ -26,27 +14,19 @@ async function uploadFile(req, res) {
 // API для стороннего микросервиса
 async function watched(req, res) {
   try {
-    const id = await fileModel.addFile(req.body);
-    // сразу оповещаем фронтенд новым файлом
-    informClients("ADDFILE", fileModel.getFileById(id));
-    // пытаемся начать кодирование если есть свободный воркер
-    const idleWorker = workerModel.getIdleWorker();
-    if (idleWorker) {
-      const pendingFile = fileModel.getPendingFile();
-      if (pendingFile) {
-        idleWorker.transcode(pendingFile);
-      }
-    }
+    await fileModel.addFile(req.body);
+    // запускаем процесс попытки кодирования
+    workerModel.tryProcessNext();
   } catch (e) {
     res.status(500).send(e.message);
   }
   res.status(200).end();
 }
 
-
 function getFiles(req, res) {
   const files = fileModel.getFiles();
-  res.status(200).json(files);
+  const filteredData = files.map(file => file.filterFileData());
+  res.status(200).json(filteredData);
 }
 
 function deleteFile(req, res) {

@@ -5,16 +5,15 @@ const pool = mysql.createPool({
     connectionLimit: 15
 });
 
-//require('./init')(pool);
 const category = require('./category')(pool);
 const worker = require('./worker')(pool);
-const file = require('./file')(pool);
+const error = require('./error')(pool);
 const log = require('./log')(pool);
 
 module.exports = {
   ...category,
   ...worker,
-  ...file,
+  ...error,
   ...log,
   pool
 };

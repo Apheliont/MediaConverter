@@ -1,11 +1,5 @@
 version: "3"
 services:
-  database:
-    image: mysql
-    container_name: database
-    environment:
-      MYSQL_ROOT_PASSWORD: Jd8#jn@h10&92gAeVb
-    command: --default-authentication-plugin=mysql_native_password
   worker:
     build:
       context: ./worker
@@ -42,6 +36,7 @@ services:
       - ./server:/app
       - ./videoSource:/app/videoSource
     command: nodemon app.js -L --ignore '*.json'
+    # command: tail -f /dev/null
   front:
     build:
       context: ./front
@@ -55,3 +50,9 @@ services:
     environment:
       - CHOKIDAR_USEPOLLING=true
     command: npm run serve
+  database:
+    image: mysql
+    container_name: database
+    environment:
+      MYSQL_ROOT_PASSWORD: Jd8#jn@h10&92gAeVb
+    command: --default-authentication-plugin=mysql_native_password

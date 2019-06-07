@@ -1,5 +1,6 @@
 {
   "uploadPath": "/app/videoSource/",
+  "tempFolderName": "Temp",
   "database": {
     "database": "media_converter",
     "user": "root",

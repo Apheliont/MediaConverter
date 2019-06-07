@@ -58,7 +58,7 @@ export default {
       const fileId = payload.id;
       const fileToUpdate = state.files.find(file => file.id === fileId);
       if (fileToUpdate) {
-        for (let prop in payload) {
+        for (const prop in payload) {
           fileToUpdate[prop] = payload[prop];
         }
       }

@@ -62,7 +62,16 @@
                         @input="hasChanged = true"
                         :disabled="!isEditing"
                         :rules="[notEmpty]"
-                        label="Путь для исходных файлов"
+                        label="Путь для закачки файлов через WEB"
+                      ></v-text-field>
+                    </v-flex>
+                    <v-flex>
+                      <v-text-field
+                        v-model="tempSettings.tempFolderName"
+                        @input="hasChanged = true"
+                        :disabled="!isEditing"
+                        :rules="[notEmpty]"
+                        label="Название для временной папки"
                       ></v-text-field>
                     </v-flex>
                   </v-layout>
@@ -101,6 +110,7 @@ export default {
     snackColor: "success",
     tempSettings: {
       uploadPath: "",
+      tempFolderName: "",
       database: {
         database: "",
         host: "",
@@ -110,6 +120,7 @@ export default {
     },
     forReset: {
       uploadPath: "",
+      tempFolderName: "",
       database: {
         database: "",
         host: "",

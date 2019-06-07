@@ -1,54 +1,55 @@
 <template>
   <v-layout class="container" row fill-height>
-      <v-flex align-self-start grow>
-        <v-card flat>
-          <v-card-title class="title my-title">
-            Импортируемые файлы:
-            <v-spacer></v-spacer>
-            <v-text-field
-              v-model="search"
-              append-icon="search"
-              label="Поиск"
-              single-line
-              hide-details
-            ></v-text-field>
-          </v-card-title>
-          <v-data-table
-            ref="transcode-data-table"
-            hide-actions
-            :headers="headers"
-            :items="files"
-            :search="search"
-            :custom-filter="customFilter"
-            class="my-data-table"
-            transition="scale-transition"
-          >
-            <template slot="items" slot-scope="props">
-              <td class="text-left">{{ props.item.id }}</td>
-              <td class="text-left">
-                <div class="my-name-field">{{ props.item.fileName }}</div>
-              </td>
-              <td class="text-left">
-                <v-progress-circular
-                  :rotate="270"
-                  :size="43"
-                  :width="5"
-                  :value="props.item.progress"
-                  color="green accent-4"
-                >{{ props.item.progress || 0 }}</v-progress-circular>
-              </td>
-              <td class="text-left">{{ props.item.status | statusToText(statusText) }}</td>
-              <td class="text-left">{{ categoryToString(props.item.category) }}</td>
-              <td class="text-left">{{ props.item.workerID | workerIDToHR }}</td>
-              <td class="text-left">{{ props.item.duration | durationToHR }}</td>
-              <td class="text-left">{{ props.item.size | humanReadableSize }}</td>
-              <td>
-                <v-icon @click="deleteItem(props.item)">delete</v-icon>
-              </td>
-            </template>
-          </v-data-table>
-        </v-card>
-      </v-flex>
+    <v-flex align-self-start grow>
+      <v-card flat>
+        <v-card-title class="title my-title">
+          Импортируемые файлы:
+          <v-spacer></v-spacer>
+          <v-text-field
+            v-model="search"
+            append-icon="search"
+            label="Поиск"
+            single-line
+            hide-details
+          ></v-text-field>
+        </v-card-title>
+        <v-data-table
+          ref="transcode-data-table"
+          hide-actions
+          :headers="headers"
+          :items="files"
+          :search="search"
+          :custom-filter="customFilter"
+          class="my-data-table"
+          transition="scale-transition"
+        >
+          <template slot="items" slot-scope="props">
+            <td class="text-left">{{ props.item.id }}</td>
+            <td class="text-left">
+              <div class="my-name-field">{{ props.item.fileName }}{{ props.item.extension }}</div>
+            </td>
+            <td class="text-left">
+              <v-progress-circular
+                :rotate="270"
+                :size="43"
+                :width="5"
+                :value="props.item.progress"
+                color="green accent-4"
+              >{{ props.item.progress || 0 }}</v-progress-circular>
+            </td>
+            <td class="text-left">{{ props.item.status | statusToText() }}</td>
+            <td class="text-left">{{ props.item.stage | stageToText() }}</td>
+            <td class="text-left">{{ categoryToString(props.item.category) }}</td>
+            <td class="text-left">{{ props.item.workers | workerIDToHR }}</td>
+            <td class="text-left">{{ props.item.duration | durationToHR }}</td>
+            <td class="text-left">{{ props.item.size | humanReadableSize }}</td>
+            <td>
+              <v-icon @click="deleteItem(props.item)">delete</v-icon>
+            </td>
+          </template>
+        </v-data-table>
+      </v-card>
+    </v-flex>
   </v-layout>
 </template>
 
@@ -59,24 +60,19 @@ export default {
     return {
       search: "",
       selected: [],
-      statusText: ["Завершено", "Ошибка", "Кодируется", "Ожидание"],
       headers: [
         { text: "ID", value: "id", align: "left", width: 50 },
         { text: "Имя файла", value: "fileName", align: "left", width: 350 },
         { text: "Прогресс", value: "progress", align: "left", width: 100 },
-        { text: "Статус", value: "status", align: "left", width: 100 },
+        { text: "Состояние", value: "status", align: "left", width: 100 },
+        { text: "Этап", value: "stage", align: "left", width: 100 },
         { text: "Категория", value: "category", align: "left", width: 100 },
-        { text: "№ Обработчика", value: "workerID", align: "left", width: 50 },
+        { text: "Обработчики", value: "workers", align: "left", width: 70 },
         { text: "Длительность", value: "duration", align: "left", width: 50 },
         { text: "Размер", value: "size", align: "left", width: 120 },
         { text: "Удалить", value: "id", sortable: false, width: 150 }
       ]
     };
-  },
-  filters: {
-    statusToText(value, statusText) {
-      return statusText[value];
-    }
   },
   computed: {
     ...mapGetters({

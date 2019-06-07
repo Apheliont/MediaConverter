@@ -45,11 +45,12 @@ export default {
         const id = await result.json();
         const newWorker = {
           ...payload,
-          condition: {
+          state: {
             message: "неизвестно",
-            files: "",
-            isBusy: false,
-            status: 0
+            fileIDs: {}, // key - fileID, value - кол-во частей файла
+            idleCores: 0,
+            status: 0,
+            physicalCores: 0
           },
           ...id
         };
