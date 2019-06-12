@@ -40,7 +40,7 @@ module.exports = class Merge {
           });
         })
         .on("error", (err, stdout, stderr) => {
-          process.chdir(path.join(this.tempDir, "..", ".."));
+          process.chdir(path.join(this.sourcePath, "..", ".."));
           settings.condition.deleteFileCommand(this.id, command);
           reject(err);
         })

@@ -1,11 +1,6 @@
-const fsPromise = require("fs").promises;
-const util = require("util");
-const path = require("path");
 const db = require("../database/main");
-const settings = require("./settings");
 let { informClients } = require("../socket.io-server");
 informClients = informClients("FILEINFO");
-const rimraf = util.promisify(require("rimraf")); // удаляет дирректорию рекурсивно
 
 module.exports = (function() {
   const lockFileTimerId = {}; // хранит ID сопоставимые в объект Timeout для сброса таймеров
@@ -23,7 +18,6 @@ module.exports = (function() {
       endTime,
       sourcePath = "" // если поле пустое то воркер возмет дефолтный путь для uploadFiles
     }) {
-      // Начальные данные
       this.id = id;
       this.fileName = fileName;
       this.extension = extension;
@@ -41,7 +35,7 @@ module.exports = (function() {
         workerID: undefined,
         keyFrameInterval: undefined,
         extension: undefined,
-        sourcePath: undefined,
+        tempRootPath: undefined, // Это путь к сгенереной темп папки для конкретного файла
         options: undefined
       };
       this.stage_1 = {
@@ -84,7 +78,7 @@ module.exports = (function() {
         case 1:
           Object.assign(newFileData, {
             extension: this["stage_0"].extension,
-            sourcePath: this["stage_0"].sourcePath,
+            tempRootPath: this["stage_0"].tempRootPath,
             options: JSON.parse(JSON.stringify(this["stage_0"].options)),
             keyFrameInterval: this["stage_0"].keyFrameInterval,
             lastPart: this["stage_1"].lastPart,
@@ -93,29 +87,14 @@ module.exports = (function() {
           break;
         case 2:
           Object.assign(newFileData, {
-            sourcePath: path.join(this["stage_0"].sourcePath, "..", "parts"), // статично прописанный путь! Если будут изменения пути в коде воркера, то и тут надо изменить!
+            tempRootPath: this["stage_0"].tempRootPath,
             category: this.category // по id категории сопостовляется выходной путь
           });
           break;
       }
       return newFileData;
     }
-    // удаляет исходный файл с ФС, возвращает промис
-    clearSourceFile() {
-      const sourcePath = this.soucePath
-        ? this.soucePath
-        : settings.get("uploadPath");
-      return fsPromise.unlink(
-        path.join(sourcePath, `${this.fileName}${this.extension}`)
-      );
-    }
-    // удаляет Temp папку файла и все находящиеся там файлы
-    clearTempFolder() {
-      if (!this.fileTempPath) {
-        return Promise.reject("У файла нет Temp папки");
-      }
-      return rimraf(this.fileTempPath);
-    }
+
     // функция лочит файл или его части и после истечения определенного времени
     // если не было получено подтверждение со стороны воркера возвращает состояние назад
     // Возвращает в случае успеха timerID, в случае неудачи -1
@@ -374,11 +353,14 @@ module.exports = (function() {
     }
 
     deleteFileById(id) {
+      console.log("trying to delete file... ", id);
       const fileToDelete = this.getFileById(id);
       if (!fileToDelete) {
         return;
       }
-
+      const operationalWorker = outerMethods["getAnyOperationalWorker"]();
+      // если ни одного работающего воркера не найдено, выходим из функции
+      if (!operationalWorker) return;
       // Четыре варианта события:
       // 1) Файл полность откодирован или вылетел с ошибкой
       // 2) Файл не начинал кодироваться т.к все воркеры заняты
@@ -423,13 +405,31 @@ module.exports = (function() {
           Object.keys(fileToDelete["stage_1"].currentTranscode[2])
         ).length === 0
       ) {
-        // сделать зачистку файлов на ФС
-        fileToDelete.clearSourceFile().catch(e => {
-          // не важна
-        });
-        fileToDelete.clearTempFolder().catch(e => {
-          // не важна
-        });
+        // // сделать зачистку файлов на ФС
+        // собираем объект в котором будут данные о том что надо стереть
+        const fileData = {};
+        fileData.sourceFile = {};
+        fileData.destinationFile = {};
+
+        fileData.sourceFile.sourcePath = fileToDelete.sourcePath;
+        fileData.sourceFile.fileName = fileToDelete.fileName;
+        fileData.sourceFile.extension = fileToDelete.extension;
+
+        // если файл был удален пользователем, то надо
+        // на какой стадии был файл. Если на "2"(склейка)
+        // то надо удалить еще и созданный файл назначения
+        // На стороне воркера, проверим если объект outputFile
+        // не равен undefined, то удалим еще и файл назначения
+        if (fileToDelete.status === 4 && fileToDelete.stage === 2) {
+          fileData.outputFile = {};
+          fileData.outputFile.category = fileToDelete.category;
+          fileData.outputFile.fileName = fileToDelete.fileName;
+          fileData.outputFile.extension = ".mxf";
+        }
+
+        fileData.tempRootPath = fileToDelete["stage_0"].tempRootPath;
+        operationalWorker.deleteFiles(fileData);
+
         const indexOfFile = this.storage.findIndex(file => file.id === id);
         // обновляем инфу о файле перед удалением, это то что пойдет в логи
         fileToDelete.finished_at = this.getFormatedDateTime();
@@ -570,24 +570,29 @@ module.exports = (function() {
         // файл перешел в состояние "в процессе"
         if (file.status === 2 && fileToUpdate.processing_at === undefined) {
           fileToUpdate.processing_at = this.getFormatedDateTime();
-        }
-        // файл откодировался или вылетел с ошибкой
-        if (file.status === 0 || file.status === 1) {
+        } else if (file.status === 0 || file.status === 1) {
+          // файл откодировался или вылетел с ошибкой
           this.deleteFileById(file.id);
-          return;
-        }
-        // "останавливающийся файл"
-        if (file.status === 4) {
-          if ("stopConversion" in file && fileToUpdate.stage === 1) {
-            const workerID = file["stopConversion"].workerID;
-            const stoppedParts = file["stopConversion"].stoppedParts;
-            if (completeParts(fileToUpdate, workerID, stoppedParts)) {
-              this.deleteFileById(file.id);
+        } else if (file.status === 4) {
+          // "останавливающийся файл"
+          // если файл был отменен, важно знать на какой стадии кодирования он был
+          // если эта стадия 1(кодирование по частям), нам нужно чтобы все части
+          // файла были остановлены, прежде чем его полностью удалить из ФС
+          if (fileToUpdate.stage === 1) {
+            const workerID = file.workerID;
+            if (workerID in fileToUpdate["stage_1"].currentTranscode[2]) {
+              delete fileToUpdate["stage_1"].currentTranscode[2][workerID];
+              const remainingActiveParts = Object.keys(
+                fileToUpdate["stage_1"].currentTranscode[2]
+              ).length;
+              // если активно кодирующихся частей больше нет, удаляем файл
+              if (remainingActiveParts === 0) {
+                this.deleteFileById(file.id);
+              }
             }
           } else {
             this.deleteFileById(file.id);
           }
-          return;
         }
       }
       // это файл после окончания 0 ступени
@@ -613,7 +618,7 @@ module.exports = (function() {
         // это файл в состоянии кодирования по частям,
         // нужно вычислить когда все части откодируются и перевести
         // файл на следующую ступень
-        const workerID = file["stage_1"].workerID;
+        const workerID = file.workerID;
         const transcodedParts = file["stage_1"].transcodedParts;
         // проверяем если нет активно кодируемых частей, то ставим статус 3
         if (

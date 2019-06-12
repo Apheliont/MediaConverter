@@ -91,7 +91,7 @@ module.exports = class Prepare {
           resolve({
             keyFrameInterval: this.keyFrameInterval,
             extension: this.extension,
-            sourcePath: this.destinationPath,
+            // sourcePath: this.destinationPath,
             options: this.options
           });
         })

@@ -1,10 +1,12 @@
 const Merge = require("../processors/merge");
+// const { deleteSourceFile, deleteTempFolder } = require("../processors/delete");
 const settings = require("../settings");
 const io = require("../socket.io-server");
+const path = require("path");
 
 module.exports = async function({ file, worker_timerID, file_timerID }) {
   // деструктуризуем данные в объекте file
-  const { id, fileName, sourcePath, category } = file;
+  const { id, fileName, tempRootPath, category } = file;
   try {
     if (
       settings.workerID === undefined ||
@@ -25,7 +27,7 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
         fileID: id
       }
     });
-
+    const sourcePath = path.join(tempRootPath, "parts");
     const destinationPath = settings.categories.find(
       cat => cat.id === Number(category)
     ).path;
@@ -42,25 +44,25 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
     io.emit("workerResponse", {
       fileInfo: {
         id,
-        parts: 1,
+        // parts: 1,
         status: 0
       }
     });
   } catch (e) {
     // если ошибка связана с отменой файла то это ОК, не пробрасываем ее дальше
     if (e.message && e.message.split(" ").includes("SIGKILL")) {
-      io.emit("workerResponse", {
-        fileInfo: {
-          id,
-          parts: 1,
-          status: 4
-        }
-      });
+      // io.emit("workerResponse", {
+      //   fileInfo: {
+      //     id,
+      //     parts: 1,
+      //     status: 4
+      //   }
+      // });
     } else {
       io.emit("workerResponse", {
         fileInfo: {
           id,
-          parts: 1,
+          // parts: 1,
           status: 1,
           errorMessage: `Обработчик №: ${
             settings.workerID

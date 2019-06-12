@@ -10,7 +10,7 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
     id,
     fileName,
     extension,
-    sourcePath,
+    tempRootPath,
     options,
     keyFrameInterval,
     partsToTranscode, // массив с номерами частей
@@ -36,18 +36,22 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
         fileID: id
       }
     });
-    const sourceFile = path.join(sourcePath, `${fileName}${extension}`);
+    const sourceFile = path.join(
+      tempRootPath,
+      "prepared",
+      `${fileName}${extension}`
+    );
 
     // создаем temp папку для складирования откодированных частей если она еще не создана
     // нужны вложенные try catch блоки так как папки могут быть уже созданы
     // и это ОК, не нужно чтобы из-за этого падала вся программа
     try {
-      await fsPromise.mkdir(path.join(sourcePath, "..", "parts"));
+      await fsPromise.mkdir(path.join(tempRootPath, "parts"));
     } catch (e) {
       // ошибка не важна
     }
 
-    const destPath = path.join(sourcePath, "..", "parts");
+    const destPath = path.join(tempRootPath, "parts");
     const partsPromises = [];
 
     for (const part of partsToTranscode) {
@@ -67,15 +71,15 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
       });
       partsPromises.push(transcode.transcode());
     }
-
+    
     await Promise.all(partsPromises);
     // если все ОК то отправляем инфу серверу что части файла откодированы
     io.emit("workerResponse", {
       fileInfo: {
         id,
-        parts: partsToTranscode.length,
+        // parts: partsToTranscode.length,
         stage_1: {
-          workerID: settings.workerID,
+          // workerID: settings.workerID,
           transcodedParts: partsToTranscode
         }
       }
@@ -83,22 +87,22 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
   } catch (e) {
     // если ошибка связана с отменой файла то это ОК, не пробрасываем ее дальше
     if (e.message && e.message.split(" ").includes("SIGKILL")) {
-      io.emit("workerResponse", {
-        fileInfo: {
-          id,
-          parts: partsToTranscode.length,
-          status: 4,
-          stopConversion: {
-            workerID: settings.workerID,
-            stoppedParts: partsToTranscode
-          }
-        }
-      });
+      // io.emit("workerResponse", {
+      //   fileInfo: {
+      //     id,
+      //     parts: partsToTranscode.length,
+      //     status: 4,
+      //     stopConversion: {
+      //       workerID: settings.workerID,
+      //       stoppedParts: partsToTranscode
+      //     }
+      //   }
+      // });
     } else {
       io.emit("workerResponse", {
         fileInfo: {
           id,
-          parts: partsToTranscode.length,
+          // parts: partsToTranscode.length,
           status: 1,
           errorMessage: `Обработчик №: ${
             settings.workerID

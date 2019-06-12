@@ -63,10 +63,10 @@ export default {
       headers: [
         { text: "ID", value: "id", align: "left", width: 50 },
         { text: "Имя файла", value: "fileName", align: "left", width: 350 },
-        { text: "Прогресс", value: "progress", align: "left", width: 100 },
+        { text: "Прогресс", value: "progress", align: "left", width: 80 },
         { text: "Состояние", value: "status", align: "left", width: 100 },
-        { text: "Этап", value: "stage", align: "left", width: 100 },
-        { text: "Категория", value: "category", align: "left", width: 100 },
+        { text: "Этап", value: "stage", align: "left", width: 120 },
+        { text: "Категория", value: "category", align: "left", width: 150 },
         { text: "Обработчики", value: "workers", align: "left", width: 70 },
         { text: "Длительность", value: "duration", align: "left", width: 50 },
         { text: "Размер", value: "size", align: "left", width: 120 },

@@ -138,18 +138,33 @@ module.exports = (function() {
       // взаимосвязаны, не должно быть случая когда часть из них дошли а часть нет
       this.socket.on("workerResponse", data => {
         // обновляем инфу о файле
-        if ("fileInfo" in data && "id" in data.fileInfo) {
-          if ("parts" in data.fileInfo) {
-            const fileID = data.fileInfo.id;
-            if (fileID in this.state.fileIDs) {
-              // кол-во частей откодированных воркером
-              const parts = data.fileInfo.parts;
+        if ("fileInfo" in data) {
+          const fileID = data.fileInfo.id;
+          if (fileID in this.state.fileIDs) {
+            // если файл был остановлен, упал с ошибкой, успешно завершен
+            // или просто перешел в фазу ожидания
+            // мы полностью удаляем этот файл из кодируемых воркером
+            if (
+              data.fileInfo.status !== undefined &&
+              data.fileInfo.status !== 2
+            ) {
+              delete this.state.fileIDs[fileID];
+            }
+            // если пришла инфа от stage_1 (транскод по частям)
+            // смотрим сколько частей откодировалось
+            if ("stage_1" in data.fileInfo) {
+              const parts = data.fileInfo["stage_1"].transcodedParts.length;
               this.state.fileIDs[fileID] -= parts;
               if (this.state.fileIDs[fileID] <= 0) {
                 delete this.state.fileIDs[fileID];
               }
             }
+            informAboutWorker("WORKERINFO", this.getInfo());
           }
+          // инъектим в объект data.fileInfo ID воркера
+          // это нужно чтобы расчитать в моделе файла
+          // сколько еще частей в активном состоянии
+          data.fileInfo.workerID = this.id;
           outerMethods["updateFile"](data.fileInfo);
           this.emit("tryProcessNext");
         }
@@ -263,6 +278,15 @@ module.exports = (function() {
 
     stopConversion(id) {
       this.socket.emit("stopConversion", id);
+    }
+
+    deleteFiles(fileData) {
+      // fileData это объект у которого 2 или 3 свойства: 1) sourceFile - это объект
+      // у которого 3 поля =) : sourcePath, fileName, extension
+      // 2) tempRootPath - это путь к сгенереной темп папки для конкретного файла
+      // 3) Переменное св-во объект outputFile, оно может быть а может и нет
+      // Если файл был удален пользователем и стадия была 2 - поле присуствует
+      this.socket.emit("deleteFiles", fileData);
     }
   }
 
@@ -411,6 +435,14 @@ module.exports = (function() {
         idleWorkers.sort((a, b) => a.state.idleCores - b.state.idleCores);
       }
       return idleWorkers;
+    }
+
+    // возвращает первый попавшийся воркер из числа подключенных
+    getAnyOperationalWorker() {
+      for (const worker of this.storage) {
+        if (worker.state.status === 1) return worker;
+      }
+      return undefined;
     }
 
     // В этой функции ищем все ожидающие обработки файлы, берем все свободные ресурсы и лочим их под конкретный файл

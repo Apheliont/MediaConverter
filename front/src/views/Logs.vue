@@ -29,7 +29,7 @@
           <v-divider></v-divider>
           <v-card-actions>
             <v-spacer></v-spacer>
-            <v-btn color="primary" flat @click="workerInfo = false">О как, ладно</v-btn>
+            <v-btn color="primary" flat @click="workerInfo = false">Пойдет</v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
@@ -134,13 +134,13 @@ export default {
         { text: "№ Обработчика(ов)", value: "workers" }
       ],
       pagination: {
-        sortBy: "file_id",
+        sortBy: "id",
         descending: true,
         rowsPerPage: -1
       },
       headers: {
         success: [
-          { text: "ID", value: "file_id" },
+          { text: "ID", value: "id" },
           { text: "Имя файла", value: "fileName" },
           { text: "Размер", value: "size" },
           { text: "Длительность", value: "duration" },
@@ -151,7 +151,7 @@ export default {
           { text: "Обработчики", value: "workers", sortable: false, width: 150 }
         ],
         error: [
-          { text: "ID", value: "file_id" },
+          { text: "ID", value: "id" },
           { text: "Имя файла", value: "fileName" },
           { text: "Размер", value: "size" },
           { text: "Длительность", value: "duration" },

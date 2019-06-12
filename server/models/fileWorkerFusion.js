@@ -8,7 +8,10 @@ fileModel.addMethod(
   "getWorkerById",
   workerModel.getWorkerById.bind(workerModel)
 );
-
+fileModel.addMethod(
+  "getAnyOperationalWorker",
+  workerModel.getAnyOperationalWorker.bind(workerModel)
+);
 workerModel.addMethod("getFileById", fileModel.getFileById.bind(fileModel));
 workerModel.addMethod("releaseFiles", fileModel.releaseFiles.bind(fileModel));
 workerModel.addMethod(
