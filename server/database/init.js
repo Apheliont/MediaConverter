@@ -44,7 +44,7 @@ CREATE EVENT IF NOT EXISTS clearLogs
         EVERY 1 DAY STARTS NOW()
     COMMENT 'clearing log entities those are older than one week'
     DO
-        DELETE FROM logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 3 DAY)`;
+        DELETE FROM logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)`;
 
 function makeQuery(pool) {
   return function(query) {

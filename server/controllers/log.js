@@ -1,7 +1,7 @@
 const db = require('../database/main');
 
 function getLogs(req, res) {
-    db.getLogs()
+    db.getLogs(req.query)
     .then(logs => {
         res.status(200).json(logs);
     })

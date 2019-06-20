@@ -10,8 +10,8 @@ const merge = require("./controllers/merge");
 
 async function init() {
   try {
-    const { physicalCores } = await si.cpu();
-    settings.physicalCores = physicalCores;
+    const { cores } = await si.cpu();
+    settings.physicalCores = cores;
 
     io.on("connection", socket => {
       socket.emit("workerResponse", {

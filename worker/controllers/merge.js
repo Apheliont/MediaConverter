@@ -6,7 +6,7 @@ const path = require("path");
 
 module.exports = async function({ file, worker_timerID, file_timerID }) {
   // деструктуризуем данные в объекте file
-  const { id, fileName, tempRootPath, category } = file;
+  const { id, fileName, tempRootPath, category, duration } = file;
   try {
     if (
       settings.workerID === undefined ||
@@ -36,7 +36,8 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
       id,
       fileName,
       sourcePath,
-      destinationPath
+      destinationPath,
+      duration
     });
 
     await merge.merge();

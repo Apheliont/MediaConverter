@@ -7,7 +7,6 @@ const settings = require("./settings");
 const category = require("./category");
 
 module.exports = (function() {
-  const lockWorkerTimerId = {}; // хранит ID таймеров залоченых воркеров
   const lockTime = 7000; // время на которое лочится воркер
   const outerMethods = {};
 
@@ -69,6 +68,9 @@ module.exports = (function() {
       this.description = data.description;
       this.sourcePath = data.sourcePath; // путь по умолчанию для файлов закачанных через веб,
       this.options = data.options;
+      // хранит ID таймеров, для разлока ядер воркера
+      // каждый key сопоставлен с объектом типа timer
+      this.lockCoresTimerId = {};
       this.state = {
         message: "Неизвестно",
         fileIDs: {}, // key - fileID, value - кол-во частей которые были отправлены на обработчик
@@ -105,31 +107,24 @@ module.exports = (function() {
       this.socket.on("disconnect", reason => {
         this.state.status = 0;
         this.state.message = reason;
-        // обновляем глобальный синглтон содержащий общее число ядер
-        commonData.removeWorkerCores(this.id);
-
-        // нужно взять ID всех файлов которые обрабатывал воркер до дисконнекта и
-        // поменять им состояние на "в ожидании"
+        // последовательность имеет значение! В releaseWorker удаляются fileIDs
         const fileIDs = Object.keys(this.state.fileIDs).map(key =>
           parseInt(key)
         );
+        this.releaseWorker();
         outerMethods["releaseFiles"](fileIDs, this.id);
-        // убираем все ID из текущих кодируемых воркером
-        this.state.fileIDs = {};
         informAboutWorker("WORKERINFO", this.getInfo());
       });
 
       this.socket.on("error", err => {
         this.state.status = 2;
         this.state.message = err.message;
-        // обновляем глобальный синглтон содержащий общее число ядер
-        commonData.removeWorkerCores(this.id);
+        // последовательность имеет значение! В releaseWorker удаляются fileIDs
         const fileIDs = Object.keys(this.state.fileIDs).map(key =>
           parseInt(key)
         );
+        this.releaseWorker();
         outerMethods["releaseFiles"](fileIDs, this.id);
-        // убираем все ID из текущих кодируемых воркером
-        this.state.fileIDs = {};
         informAboutWorker("WORKERINFO", this.getInfo());
       });
 
@@ -140,6 +135,9 @@ module.exports = (function() {
         // обновляем инфу о файле
         if ("fileInfo" in data) {
           const fileID = data.fileInfo.id;
+          // если ID undefined, значит была перехвачена ошибка не связанная с файлом
+          // п.с. Такой случай возможен??!
+          if (fileID === undefined) return;
           if (fileID in this.state.fileIDs) {
             // если файл был остановлен, упал с ошибкой, успешно завершен
             // или просто перешел в фазу ожидания
@@ -177,7 +175,8 @@ module.exports = (function() {
           if ("file_timerID" in ack && "fileID" in ack) {
             const file = outerMethods["getFileById"](ack.fileID);
             if (file) {
-              file.acknowledgeFile(ack["file_timerID"]);
+              // функция принимает 2 аргумента: 1) workerID 2) timerID для файла
+              file.acknowledgeFile(this.id, ack["file_timerID"]);
             }
           }
         }
@@ -205,6 +204,20 @@ module.exports = (function() {
           outerMethods["updateFileProgressById"](data.fileProgress);
         }
       });
+    }
+
+    // "отпускает" обработчик. Это значит обнуляет все данные состояния
+    // об обработчике. Всё что могло "накопиться" во время работы
+    releaseWorker() {
+      // обновляем глобальный синглтон содержащий общее число ядер
+      commonData.removeWorkerCores(this.id);
+      // если были какие-то таймеры все их подтверждаем
+      const timerIDs = Object.keys(this.lockCoresTimerId);
+      for (const timerID of timerIDs) {
+        this.acknowledgeCores(timerID);
+      }
+      // убираем все ID из текущих кодируемых воркером
+      this.state.fileIDs = {};
     }
 
     // для фронтенда
@@ -257,12 +270,12 @@ module.exports = (function() {
       this.state.fileIDs[fileID] += cores;
       // оповещаем фронт
       informAboutWorker("WORKERINFO", this.getInfo());
-      lockWorkerTimerId[timerID] = setTimeout(() => {
+      this.lockCoresTimerId[timerID] = setTimeout(() => {
         this.state.fileIDs[fileID] -= cores;
         if (this.state.fileIDs[fileID] <= 0) {
           delete this.state.fileIDs[fileID];
         }
-        delete lockWorkerTimerId[timerID];
+        delete this.lockCoresTimerId[timerID];
         informAboutWorker("WORKERINFO", this.getInfo());
         this.emit("tryProcessNext");
       }, lockTime);
@@ -270,9 +283,9 @@ module.exports = (function() {
     }
 
     acknowledgeCores(timerID) {
-      if (timerID in lockWorkerTimerId) {
-        clearTimeout(lockWorkerTimerId[timerID]);
-        delete lockWorkerTimerId[timerID];
+      if (timerID in this.lockCoresTimerId) {
+        clearTimeout(this.lockCoresTimerId[timerID]);
+        delete this.lockCoresTimerId[timerID];
       }
     }
 

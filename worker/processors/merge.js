@@ -11,14 +11,16 @@ FfmpegCommand.setFfmpegPath(ffmpeg.path);
 FfmpegCommand.setFfprobePath(ffprobe.path);
 
 module.exports = class Merge {
-  constructor({ id, fileName, destinationPath, sourcePath }) {
+  constructor({ id, fileName, destinationPath, sourcePath, duration }) {
     this.id = id;
     this.destinationPath = destinationPath;
     this.fileName = fileName;
     this.sourcePath = sourcePath;
+    this.duration = duration;
   }
 
   async merge() {
+    const totalFrames = this.duration * 25;
     const files = await fsPromise.readdir(this.sourcePath);
     const filesFormated = `concat:${files.join("|")}`;
     process.chdir(this.sourcePath);
@@ -32,10 +34,11 @@ module.exports = class Merge {
           resolve();
         })
         .on("progress", progress => {
+          const fp = Math.round(100 * progress.frames / totalFrames);
           io.emit("workerResponse", {
             fileProgress: {
               id: this.id,
-              progress: Math.ceil(progress.percent)
+              progress: fp > 100 ? 100 : fp
             }
           });
         })

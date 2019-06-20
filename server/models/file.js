@@ -3,7 +3,6 @@ let { informClients } = require("../socket.io-server");
 informClients = informClients("FILEINFO");
 
 module.exports = (function() {
-  const lockFileTimerId = {}; // хранит ID сопоставимые в объект Timeout для сброса таймеров
   const lockTime = 7000; // время на которое лочится файл
   const outerMethods = {};
 
@@ -30,6 +29,10 @@ module.exports = (function() {
       this.processing_at = undefined;
       this.finished_at = undefined;
       this.errorMessage = undefined;
+      // хранит ID сопоставимые в объект Timeout для сброса таймеров
+      // Ключи, это workerID, value - объект в котором ключ это timerID
+      // а value это timer объект, возвращаемый методом setTimeout
+      this.lockFileTimerId = {};
       // данные для разных стадий
       this.stage_0 = {
         workerID: undefined,
@@ -88,7 +91,8 @@ module.exports = (function() {
         case 2:
           Object.assign(newFileData, {
             tempRootPath: this["stage_0"].tempRootPath,
-            category: this.category // по id категории сопостовляется выходной путь
+            category: this.category, // по id категории сопостовляется выходной путь
+            duration: this.duration // нужно для расчета totalFrames, для прогресбара
           });
           break;
       }
@@ -99,31 +103,43 @@ module.exports = (function() {
     // если не было получено подтверждение со стороны воркера возвращает состояние назад
     // Возвращает в случае успеха timerID, в случае неудачи -1
     lockFile(workerID, parts) {
+      if (
+        ((this.stage === 0 || this.stage === 2) && this.status === 2) ||
+        (this.stage === 1 && parts === undefined)
+      ) {
+        return -1;
+      }
+      if (!(workerID in this.lockFileTimerId)) {
+        this.lockFileTimerId[workerID] = {};
+      }
       const timerID = Date.now();
 
+      const clearTimerID = () => {
+        delete this.lockFileTimerId[workerID][timerID];
+        if (Object.keys(this.lockFileTimerId[workerID]).length === 0) {
+          delete this.lockFileTimerId[workerID];
+        }
+      };
       // рассматриваем разные случаи
-      if (this.stage === 0) {
-        if (this.status === 2) return -1;
-        this["stage_0"].workerID = workerID;
+      if (this.stage === 0 || this.stage === 2) {
+        this[`stage_${this.stage}`].workerID = workerID;
         this.status = 2;
         // устанавливаем таймер
-        lockFileTimerId[timerID] = setTimeout(() => {
+        this.lockFileTimerId[workerID][timerID] = setTimeout(() => {
+          // вдруг файл уже удалили?
           if (this) {
             // возвращаем как было
-            this["stage_0"].workerID = undefined;
+            this[`stage_${this.stage}`].workerID = undefined;
             this.status = 3;
             // удаляем ключ и значение за собой
-            delete lockFileTimerId[timerID];
+            clearTimerID();
             informClients("UPDATEFILE", this.filterFileData());
           }
         }, lockTime);
-      }
-      // если пытаемся залочить файл в стадии 1(частичное кодирование)
-      // и не предоставили части
-      if (this.stage === 1) {
-        if (parts === undefined) return -1;
+      } else {
         const pendingParts = new Set(this["stage_1"].currentTranscode[3]);
-        const progressParts = this["stage_1"].currentTranscode[2]; // берем ссылку на объект {workerID: Set(parts))
+        // берем ссылку на объект {workerID: Set(parts))
+        const progressParts = this["stage_1"].currentTranscode[2];
         const newProgressParts =
           workerID in progressParts
             ? new Set(progressParts[workerID])
@@ -137,14 +153,14 @@ module.exports = (function() {
           newProgressParts.add(part);
         }
         // если цикл прошел успешно значит всё было в соотвествии и можно переназначить Set'ы
-        this["stage_1"].currentTranscode[3] = new Set(pendingParts);
+        this["stage_1"].currentTranscode[3] = pendingParts;
         this["stage_1"].currentTranscode[2][workerID] = new Set(
           newProgressParts
         );
         this.status = 2;
 
         // устанавливаем таймер который после срабатывания вернет все назад
-        lockFileTimerId[timerID] = setTimeout(() => {
+        this.lockFileTimerId[workerID][timerID] = setTimeout(() => {
           if (this) {
             // это не копии а ссылки на объекты Set, т.к отката нет, работаем "in place"
             const pendingParts = this["stage_1"].currentTranscode[3];
@@ -168,30 +184,13 @@ module.exports = (function() {
               this.status = 3;
             }
             // удаляем ключ и значение за собой
-            delete lockFileTimerId[timerID];
+            clearTimerID();
             // оповещаем фронтэнд
             informClients("UPDATEFILE", this.filterFileData());
           }
         }, lockTime);
       }
-      if (this.stage === 2) {
-        if (this.status === 2) {
-          return -1;
-        }
-        this["stage_2"].workerID = workerID;
-        this.status = 2;
-        // устанавливаем таймер
-        lockFileTimerId[timerID] = setTimeout(() => {
-          if (this) {
-            this["stage_2"].workerID = undefined;
-            this.status = 3;
-            // удаляем ключ и значение за собой
-            delete lockFileTimerId[timerID];
-            // оповещаем фронтэнд
-            informClients("UPDATEFILE", this.filterFileData());
-          }
-        }, lockTime);
-      }
+
       // оповещаем фронтэнд
       informClients("UPDATEFILE", this.filterFileData());
       return timerID;
@@ -210,7 +209,7 @@ module.exports = (function() {
             Math.round(
               this.progressOnStage_1.reduce((sum, next) => {
                 return sum + next;
-              }, 0) * 0.7
+              }, 0) * 0.7 / this.progressOnStage_1.length
             )
           );
         case 2:
@@ -253,10 +252,13 @@ module.exports = (function() {
       };
     }
 
-    acknowledgeFile(timerID) {
-      if (timerID in lockFileTimerId) {
-        clearTimeout(lockFileTimerId[timerID]);
-        delete lockFileTimerId[timerID];
+    acknowledgeFile(workerID, timerID) {
+      if (!(workerID in this.lockFileTimerId)) return;
+      if (!(timerID in this.lockFileTimerId[workerID])) return;
+      clearTimeout(this.lockFileTimerId[workerID][timerID]);
+      delete this.lockFileTimerId[workerID][timerID];
+      if (Object.keys(this.lockFileTimerId[workerID]).length === 0) {
+        delete this.lockFileTimerId[workerID];
       }
     }
 
@@ -289,6 +291,13 @@ module.exports = (function() {
         const file = this.getFileById(id);
         if (!file) {
           continue;
+        }
+        // гасит активные таймеры
+        if (workerID in file.lockFileTimerId) {
+          const timerIDs = Object.keys(file.lockFileTimerId[workerID]);
+          for (const timerID of timerIDs) {
+            file.acknowledgeFile(workerID, timerID);
+          }
         }
         switch (file.stage) {
           case 1:
@@ -353,7 +362,6 @@ module.exports = (function() {
     }
 
     deleteFileById(id) {
-      console.log("trying to delete file... ", id);
       const fileToDelete = this.getFileById(id);
       if (!fileToDelete) {
         return;

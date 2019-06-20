@@ -22,6 +22,7 @@ module.exports = {
       if (id in this.fileIDs) {
         return Array.from(this.fileIDs[id]);
       }
+      return [];
     },
     getAllFileCommands() {
       const allCommands = [];

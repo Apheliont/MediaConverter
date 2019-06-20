@@ -90,6 +90,8 @@ module.exports = class Transcode {
       outputOptions.push(`-t ${this.duration}`);
     }
 
+    const totalFramesInPart = this.duration * 25;
+
     return new Promise((resolve, reject) => {
       const command = new FfmpegCommand(this.sourceFile, converterOptions)
         .inputOptions(inputOptions)
@@ -106,7 +108,7 @@ module.exports = class Transcode {
           io.emit("workerResponse", {
             fileProgress: {
               id: this.id,
-              progress: Math.ceil(progress.percent),
+              progress: Math.round(100 * progress.frames / totalFramesInPart),
               part: this.part
             }
           });
