@@ -17,8 +17,8 @@ Vue.filter("workerIDToHR", function(value) {
 });
 
 Vue.filter("stageToText", function(value) {
-  if (value > 2 || value < 0) return "Неверное значение";
-  return ["Подготовка", "Кодирование", "Склейка"][value];
+  if (value > 3 || value < 0) return "Неверное значение";
+  return ["Подготовка", "Кодирование", "Склейка", "Перемещение"][value];
 });
 
 Vue.filter("statusToText", function(value) {

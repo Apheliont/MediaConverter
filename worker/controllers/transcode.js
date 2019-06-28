@@ -14,7 +14,9 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
     options,
     keyFrameInterval,
     partsToTranscode, // массив с номерами частей
-    lastPart
+    lastPart,
+    partSuffix,
+    destinationFormat
   } = file;
   try {
     if (
@@ -22,9 +24,7 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
       settings.totalPhysicalCores === 0 ||
       settings.tempFolderName === undefined
     ) {
-      await Promise.reject(
-        "Состояние воркера не позволяет обрабатывать файлы"
-      );
+      await Promise.reject("Состояние воркера не позволяет обрабатывать файлы");
     }
 
     // подтверждаем получение данных
@@ -57,7 +57,7 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
     for (const part of partsToTranscode) {
       const destFile = path.join(
         destPath,
-        `${fileName}_part_${part + 1}.mxf`
+        `${fileName}${partSuffix}${part + 1}${destinationFormat}`
       );
       const transcode = new Transcode({
         id,
@@ -69,40 +69,25 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
         duration: keyFrameInterval,
         isLast: lastPart === part
       });
-      partsPromises.push(transcode.transcode());
+      partsPromises.push(transcode.start());
     }
-    
+
     await Promise.all(partsPromises);
     // если все ОК то отправляем инфу серверу что части файла откодированы
     io.emit("workerResponse", {
       fileInfo: {
         id,
-        // parts: partsToTranscode.length,
         stage_1: {
-          // workerID: settings.workerID,
           transcodedParts: partsToTranscode
         }
       }
     });
   } catch (e) {
     // если ошибка связана с отменой файла то это ОК, не пробрасываем ее дальше
-    if (e.message && e.message.split(" ").includes("SIGKILL")) {
-      // io.emit("workerResponse", {
-      //   fileInfo: {
-      //     id,
-      //     parts: partsToTranscode.length,
-      //     status: 4,
-      //     stopConversion: {
-      //       workerID: settings.workerID,
-      //       stoppedParts: partsToTranscode
-      //     }
-      //   }
-      // });
-    } else {
+    if (!(e.message && e.message.split(" ").includes("SIGKILL"))) {
       io.emit("workerResponse", {
         fileInfo: {
           id,
-          // parts: partsToTranscode.length,
           status: 1,
           errorMessage: `Обработчик №: ${
             settings.workerID

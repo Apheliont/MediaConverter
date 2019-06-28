@@ -1,15 +1,5 @@
 <template>
   <div>
-    <div class="my-model-screen" v-if="editDialog" @click.stop.prevent></div>
-    <v-scale-transition>
-      <app-edit-dialog
-        v-if="editDialog"
-        :editfilename="editfilename"
-        :files="files"
-        @cancel="cancelEditDialog"
-        @save="saveEditDialog"
-      />
-    </v-scale-transition>
     <div class="text-center">
       <v-dialog
         v-model="dialog"
@@ -19,6 +9,16 @@
         max-width="1000"
       >
         <v-card>
+          <div class="my-model-screen" v-if="editDialog" @click.stop.prevent></div>
+          <v-scale-transition>
+            <app-edit-dialog
+              v-if="editDialog"
+              :editfilename="editfilename"
+              :files="files"
+              @cancel="cancelEditDialog"
+              @save="saveEditDialog"
+            />
+          </v-scale-transition>
           <v-card-title class="headline grey lighten-2" primary-title>Импорт файлов</v-card-title>
           <v-alert :value="successfulUpload" type="success">Ура! Закачалось!</v-alert>
           <v-alert

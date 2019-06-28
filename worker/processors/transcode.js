@@ -34,7 +34,7 @@ module.exports = class Transcode {
     this.isLast = isLast;
   }
 
-  async transcode() {
+  async start() {
     const presetName = this.options.isMute
       ? "mxf_mute"
       : this.options.splitAudio
@@ -75,11 +75,10 @@ module.exports = class Transcode {
     const inputOptions = [];
     let fastSeekStartTime;
     let slowSeekStartTime;
+    const FSLOW_DELTA = 1; // 1 секунда на медленный поиск для точного попадания в keyFrame
     if (this.startTime >= 2) {
-      // рандомно берем величину близкую к 1. Т.е 80% будут пройдены быстрым
-      // но не точным поиском, остаток медленным но точным
-      fastSeekStartTime = Math.floor(this.startTime * 0.8);
-      slowSeekStartTime = this.startTime - fastSeekStartTime;
+      fastSeekStartTime = this.startTime - FSLOW_DELTA;
+      slowSeekStartTime = FSLOW_DELTA;
       inputOptions.push(`-ss ${fastSeekStartTime}`);
     } else {
       slowSeekStartTime = this.startTime;

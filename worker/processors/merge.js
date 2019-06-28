@@ -2,7 +2,6 @@ const ffprobe = require("ffprobe-static");
 const ffmpeg = require("ffmpeg-static");
 const FfmpegCommand = require("fluent-ffmpeg");
 const path = require("path");
-const fsPromise = require("fs").promises;
 const settings = require("../settings");
 const io = require("../socket.io-server");
 
@@ -11,22 +10,29 @@ FfmpegCommand.setFfmpegPath(ffmpeg.path);
 FfmpegCommand.setFfprobePath(ffprobe.path);
 
 module.exports = class Merge {
-  constructor({ id, fileName, destinationPath, sourcePath, duration }) {
+  constructor({
+    id,
+    fileName,
+    sourcePath,
+    finalInTemp,
+    duration,
+    filesToMerge
+  }) {
     this.id = id;
-    this.destinationPath = destinationPath;
     this.fileName = fileName;
     this.sourcePath = sourcePath;
+    this.finalInTemp = finalInTemp;
     this.duration = duration;
+    this.filesToMerge = filesToMerge;
   }
 
-  async merge() {
+  start() {
     const totalFrames = this.duration * 25;
-    const files = await fsPromise.readdir(this.sourcePath);
-    const filesFormated = `concat:${files.join("|")}`;
+
     process.chdir(this.sourcePath);
     return new Promise((resolve, reject) => {
       const command = new FfmpegCommand()
-        .input(filesFormated)
+        .input(this.filesToMerge)
         .on("end", () => {
           process.chdir(path.join(this.sourcePath, "..", ".."));
           // удаляем объект command котрый используется для остановки кодирования
@@ -34,7 +40,7 @@ module.exports = class Merge {
           resolve();
         })
         .on("progress", progress => {
-          const fp = Math.round(100 * progress.frames / totalFrames);
+          const fp = Math.round((100 * progress.frames) / totalFrames);
           io.emit("workerResponse", {
             fileProgress: {
               id: this.id,
@@ -48,7 +54,7 @@ module.exports = class Merge {
           reject(err);
         })
         .outputOptions(["-map 0", "-c copy"])
-        .save(path.join(this.destinationPath, `${this.fileName}.mxf`));
+        .save(this.finalInTemp);
       // добавляем объект command для возможности прервать кодирование
       settings.condition.addFileCommand(this.id, command);
     });

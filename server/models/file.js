@@ -5,6 +5,8 @@ informClients = informClients("FILEINFO");
 module.exports = (function() {
   const lockTime = 7000; // время на которое лочится файл
   const outerMethods = {};
+  const partSuffix = "_part_";
+  const destinationFormat = ".mxf";
 
   class File {
     constructor({
@@ -50,7 +52,7 @@ module.exports = (function() {
       this.stage_2 = {
         workerID: undefined
       };
-      this.status = 3; // 0 - OK, 1 - ERR, 2 - ENCODING, 3 - PENDING, 4 - DELETED by USER
+      this.status = 3; // 0 - OK, 1 - ERR, 2 - ENCODING, 3 - PENDING, 4 - DELETED by USER, 5 - moving
       this.stage = 0; // Это этап кодирования; 0 - подготавливается, 1 - кодируется, 2 - склеивается
       this.duration = undefined;
       this.progressOnStage_1 = [];
@@ -85,6 +87,8 @@ module.exports = (function() {
             options: JSON.parse(JSON.stringify(this["stage_0"].options)),
             keyFrameInterval: this["stage_0"].keyFrameInterval,
             lastPart: this["stage_1"].lastPart,
+            destinationFormat,
+            partSuffix, // для добавления к названию части
             partsToTranscode
           });
           break;
@@ -92,7 +96,10 @@ module.exports = (function() {
           Object.assign(newFileData, {
             tempRootPath: this["stage_0"].tempRootPath,
             category: this.category, // по id категории сопостовляется выходной путь
-            duration: this.duration // нужно для расчета totalFrames, для прогресбара
+            duration: this.duration, // нужно для расчета totalFrames, для прогресбара
+            numberOfParts: this["stage_1"].lastPart + 1, // нужно для воссоздания сортированного списка файлов
+            partSuffix, // для воссоздания списка файлов
+            destinationFormat
           });
           break;
       }
@@ -125,7 +132,8 @@ module.exports = (function() {
         this[`stage_${this.stage}`].workerID = workerID;
         this.status = 2;
         // устанавливаем таймер
-        this.lockFileTimerId[workerID][timerID] = setTimeout(() => {
+        this.lockFileTimerId[workerID][timerID] = setTimeout((function() {
+          console.log('\x1b[33m%s\x1b[0m', `Файловый таймер! ID = ${this.id}`);
           // вдруг файл уже удалили?
           if (this) {
             // возвращаем как было
@@ -135,7 +143,7 @@ module.exports = (function() {
             clearTimerID();
             informClients("UPDATEFILE", this.filterFileData());
           }
-        }, lockTime);
+        }).bind(this), lockTime);
       } else {
         const pendingParts = new Set(this["stage_1"].currentTranscode[3]);
         // берем ссылку на объект {workerID: Set(parts))
@@ -160,7 +168,7 @@ module.exports = (function() {
         this.status = 2;
 
         // устанавливаем таймер который после срабатывания вернет все назад
-        this.lockFileTimerId[workerID][timerID] = setTimeout(() => {
+        this.lockFileTimerId[workerID][timerID] = setTimeout((function() {
           if (this) {
             // это не копии а ссылки на объекты Set, т.к отката нет, работаем "in place"
             const pendingParts = this["stage_1"].currentTranscode[3];
@@ -188,7 +196,7 @@ module.exports = (function() {
             // оповещаем фронтэнд
             informClients("UPDATEFILE", this.filterFileData());
           }
-        }, lockTime);
+        }).bind(this), lockTime);
       }
 
       // оповещаем фронтэнд
@@ -423,7 +431,7 @@ module.exports = (function() {
         fileData.sourceFile.fileName = fileToDelete.fileName;
         fileData.sourceFile.extension = fileToDelete.extension;
 
-        // если файл был удален пользователем, то надо
+        // если файл был удален пользователем, то надо узнать
         // на какой стадии был файл. Если на "2"(склейка)
         // то надо удалить еще и созданный файл назначения
         // На стороне воркера, проверим если объект outputFile
@@ -504,7 +512,7 @@ module.exports = (function() {
 
     // функция выдает файлы ожидающие обработки, сортируя массив в обратном порядке
     // Чем больше значение stage тем приоритетней файл
-    getPendingFiles() {
+    getPendingFile() {
       const files = [];
       for (const file of this.storage) {
         // файл находится в процессе удаления или произошла ошибка
@@ -520,18 +528,18 @@ module.exports = (function() {
 
       if (files.length > 1) {
         // сортируем чтобы в конце были самые приоритетные
-        files.sort((a, b) => a.stage - b.stage);
+        files.sort((a, b) => b.id - a.id);
       }
-      return files;
+      return files.pop();
     }
     // принимает переменное кол-во параметров передаваемых в объекте file
     updateFile(file) {
       const fileToUpdate = this.getFileById(file.id);
       if (fileToUpdate === -1) return;
-      // нужно обезопасить апдейт от дубликатов сообщений о ошибке файла
+      // нужно обезопасить апдейт от дубликатов сообщений об ошибке файла
       // такие ошибки будут сыпаться с нескольких обработчиков если неудача
       // случилась на этапе 1
-      if (fileToUpdate.status === 1 && file.status === 1) return;
+      if (!fileToUpdate || fileToUpdate.status === 1 && file.status === 1) return;
       const updateHelper = (target, source, nested = false) => {
         for (let prop in source) {
           if (prop in target || nested) {
@@ -608,6 +616,7 @@ module.exports = (function() {
         const numberOfParts = Math.floor(
           fileToUpdate.duration / fileToUpdate["stage_0"].keyFrameInterval
         );
+
         // устанавливаем значение последней части,
         // это надо чтобы откодировать "хвост"
         fileToUpdate["stage_1"].lastPart = numberOfParts - 1;
@@ -618,7 +627,7 @@ module.exports = (function() {
         );
         // создаем массив с кол-во элементов равным кол-ву
         // частей для регистрации прогресса кодирования на stage = 1
-        this.progressOnStage_1 = new Array(numberOfParts).fill(0);
+        fileToUpdate.progressOnStage_1 = new Array(numberOfParts).fill(0);
         // переводим файл со ступени 0 на ступень 1
         fileToUpdate.stage = 1;
       }

@@ -22,7 +22,7 @@ module.exports = class Prepare {
   }
 
   get keyFrameInterval() {
-    const interval = Math.floor(2 * this.duration / this.totalPhysicalCores);
+    const interval = Math.floor(this.duration / this.totalPhysicalCores);
     return interval < 1 ? 1 : interval;
   }
 
@@ -37,7 +37,7 @@ module.exports = class Prepare {
     );
   }
 
-  prepare() {
+  start() {
     const outputOptions = [];
     const inputOptions = [];
 

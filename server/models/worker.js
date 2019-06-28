@@ -74,21 +74,26 @@ module.exports = (function() {
       this.state = {
         message: "Неизвестно",
         fileIDs: {}, // key - fileID, value - кол-во частей которые были отправлены на обработчик
+        physicalCores: 0,
+        status: 0, // 0 - disconnect; 1 - online; 2 - crashed;
         get idleCores() {
-          const idleCores =
+          const ic =
             this.physicalCores -
             Object.values(this.fileIDs).reduce((sum, next) => {
               return sum + next;
             }, 0);
-          return idleCores >= 0 ? idleCores : 0;
-        },
-        physicalCores: 0,
-        status: 0 // 0 - disconnect; 1 - online; 2 - crashed;
+          return ic >= 0 ? ic : 0;
+        }
       };
       this.socket = io(
         `http://${data.host}:${data.port}`,
         Object.assign({}, data.options)
       );
+
+      // слушаем если изменились категории
+      // обязатель байндимся, т.к эвент эмитер передает
+      // в колбак слушателя свой контекст
+      category.on("updateCategories", this.updateCategories.bind(this));
 
       // установка обработчиков событий
       this.socket.on("connect", () => {
@@ -98,11 +103,6 @@ module.exports = (function() {
         // сообщаем пользователям состояние воркера
         informAboutWorker("WORKERINFO", this.getInfo());
       });
-
-      // слушаем если изменились категории
-      // обязатель байндимся, т.к эвент эмитер передает
-      // в колбак слушателя свой контекст
-      category.on("updateCategories", this.updateCategories.bind(this));
 
       this.socket.on("disconnect", reason => {
         this.state.status = 0;
@@ -259,7 +259,7 @@ module.exports = (function() {
     // блокирует ядра определенного воркера для определенного файла,
     // чтобы не было ошибок при асинхронном выполнении
     // если блокирование успешно возвращаем timer_id, в противном случае -1
-    lockCores(fileID, cores) {
+    lockCores(fileID, parts) {
       if (!this.isReadyToServe) return -1;
       const timerID = Date.now();
       // для контроля какие файлы кодирует воркер, записываем ID файла и число
@@ -267,18 +267,23 @@ module.exports = (function() {
       if (!(fileID in this.state.fileIDs)) {
         this.state.fileIDs[fileID] = 0;
       }
-      this.state.fileIDs[fileID] += cores;
+      this.state.fileIDs[fileID] += parts;
       // оповещаем фронт
       informAboutWorker("WORKERINFO", this.getInfo());
-      this.lockCoresTimerId[timerID] = setTimeout(() => {
-        this.state.fileIDs[fileID] -= cores;
-        if (this.state.fileIDs[fileID] <= 0) {
-          delete this.state.fileIDs[fileID];
+      // используем байнд - нужно передать контекст в функцию,
+      // где само хранилище таймеров это объект со своим контекстом
+      this.lockCoresTimerId[timerID] = setTimeout((function() {
+        // если файл уже был обработан и удален, то минуем вычитание частей
+        if (this.state.fileIDs[fileID] !== undefined) {
+          this.state.fileIDs[fileID] -= parts;
+          if (this.state.fileIDs[fileID] <= 0) {
+            delete this.state.fileIDs[fileID];
+          }
         }
         delete this.lockCoresTimerId[timerID];
         informAboutWorker("WORKERINFO", this.getInfo());
         this.emit("tryProcessNext");
-      }, lockTime);
+      }).bind(this), lockTime);
       return timerID;
     }
 
@@ -437,7 +442,7 @@ module.exports = (function() {
     // функция возвращает сортированный массив массивов,
     // где вложеный массив -> 0 элемент - объект Worker
     // 1 элемент - число свободный ядер
-    getIdleWorkers() {
+    getIdleWorker() {
       const idleWorkers = [];
       this.storage.forEach(worker => {
         if (worker.isReadyToServe()) {
@@ -447,7 +452,7 @@ module.exports = (function() {
       if (idleWorkers.length > 1) {
         idleWorkers.sort((a, b) => a.state.idleCores - b.state.idleCores);
       }
-      return idleWorkers;
+      return idleWorkers.pop();
     }
 
     // возвращает первый попавшийся воркер из числа подключенных
@@ -461,23 +466,21 @@ module.exports = (function() {
     // В этой функции ищем все ожидающие обработки файлы, берем все свободные ресурсы и лочим их под конкретный файл
     // далее отправляем их в функцию process
     tryProcessNext() {
-      let pendignFiles = outerMethods["getPendingFiles"]();
-      let idleWorkers = this.getIdleWorkers();
+      let pendignFile = outerMethods["getPendingFile"]();
+      let idleWorker = this.getIdleWorker();
       let partsToTranscode = [];
       let file_timerID;
       let worker_timerID;
 
-      while (pendignFiles.length !== 0 && idleWorkers.length !== 0) {
-        const worker = idleWorkers.pop();
-        const cores = worker.state.idleCores;
-        const file = pendignFiles.pop();
+      while (pendignFile !== undefined && idleWorker !== undefined) {
+        const cores = idleWorker.state.idleCores;
         // вариант того что файлу нужно 1 ядро
-        if (file.stage === 0 || file.stage === 2) {
-          // подрузумевается что 1 ядро точно есть так как воркер попал в массив getIdleWorkers
+        if (pendignFile.stage === 0 || pendignFile.stage === 2) {
+          // подрузумевается что 1 ядро точно есть так как воркер попал getIdleWorker
           // залочить файл и получить ID таймера, в надежде что это не -1
-          file_timerID = file.lockFile(worker.id);
+          file_timerID = pendignFile.lockFile(idleWorker.id);
           // залочить ядро у воркера и получить ID таймера
-          worker_timerID = worker.lockCores(file.id, 1);
+          worker_timerID = idleWorker.lockCores(pendignFile.id, 1);
           if (file_timerID === -1 || worker_timerID === -1) {
             console.log(
               "Что-то пошло не так в функции tryProcessNext, один из таймеров = -1"
@@ -487,15 +490,18 @@ module.exports = (function() {
         } else {
           // вариант того что файл находится на стадии кодирования по частям
           // получить части для кодирования (массив)
-          partsToTranscode = file.partsToTranscode();
+          partsToTranscode = pendignFile.partsToTranscode();
           // проверить что частей не больше чем свободных ядер
           if (cores - partsToTranscode.length < 0) {
             partsToTranscode = partsToTranscode.slice(0, cores);
           }
           // залочить все части и получить ID таймера, в надежде что это не -1
-          file_timerID = file.lockFile(worker.id, partsToTranscode);
+          file_timerID = pendignFile.lockFile(idleWorker.id, partsToTranscode);
           // залочить ядра у воркера и получить ID таймера
-          worker_timerID = worker.lockCores(file.id, partsToTranscode.length);
+          worker_timerID = idleWorker.lockCores(
+            pendignFile.id,
+            partsToTranscode.length
+          );
           if (file_timerID === -1 || worker_timerID === -1) {
             console.log(
               "Что-то пошло не так в функции tryProcessNext для множественного кодирования, один из таймеров = -1"
@@ -504,14 +510,14 @@ module.exports = (function() {
           }
         }
         // отправить файл на кодировку, предварительно трансформировав данные для воркера
-        worker.socket.emit("process", {
-          file: file.transformFileData(partsToTranscode),
+        idleWorker.socket.emit("process", {
+          file: pendignFile.transformFileData(partsToTranscode),
           file_timerID,
           worker_timerID
         });
-        // снова тащим массив ожидающих файлов и доступных ресурсов и пытаемся зайти в цикл
-        pendignFiles = outerMethods["getPendingFiles"]();
-        idleWorkers = this.getIdleWorkers();
+        // снова тащим ожидающий файл и свободный воркер
+        pendignFile = outerMethods["getPendingFile"]();
+        idleWorker = this.getIdleWorker();
       }
     }
 
