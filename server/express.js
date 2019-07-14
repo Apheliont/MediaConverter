@@ -7,8 +7,10 @@ const bodyParser = require("body-parser");
 const server = require("http").createServer(app);
 
 const categoryRoutes = require("./routes/category");
+const fwpathRoutes = require("./routes/fwpath");
 const fileRoutes = require("./routes/file");
 const workerRoutes = require("./routes/worker");
+const watcherRoutes = require("./routes/watcher");
 const settingsRoutes = require("./routes/settings");
 const logRoutes = require("./routes/log");
 const errorRoutes = require("./routes/error");
@@ -26,8 +28,10 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
 app.use("/api/categories", categoryRoutes);
+app.use("/api/fwpaths", fwpathRoutes);
 app.use("/api/files", fileRoutes);
 app.use("/api/workers", workerRoutes);
+app.use("/api/watchers", watcherRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/logs", logRoutes);
 app.use("/api/errors", errorRoutes);

@@ -1,15 +1,17 @@
-import Vue from 'vue'
-import Router from 'vue-router'
+import Vue from "vue";
+import Router from "vue-router";
 
-Vue.use(Router)
+Vue.use(Router);
 
-import Index from './views/Index';
-import Settings from './views/Settings';
-import Logs from './views/Logs';
-import General from './views/General';
-import Categories from './views/Categories';
-import AddWorker from './views/AddWorker';
-import EditWorker from './views/EditWorker';
+import Index from "./views/Index";
+import Settings from "./views/Settings";
+import Logs from "./views/Logs";
+import General from "./views/General";
+import Categories from "./views/Categories";
+import AddWorker from "./views/AddWorker";
+import EditWorker from "./views/EditWorker";
+import FileWatchers from "./views/FileWatchers";
+import FWPaths from "./views/FWPaths";
 
 // const Index = () => import('./views/Index');
 // const Settings = () => import('./views/Settings');
@@ -19,7 +21,7 @@ import EditWorker from './views/EditWorker';
 // const AddWorker = () => import('./views/AddWorker');
 // const EditWorker = () => import('./views/EditWorker');
 
-import store from './store/store';
+import store from "./store/store";
 
 export default new Router({
   mode: "history",
@@ -31,8 +33,8 @@ export default new Router({
       component: Index,
       beforeEnter: (to, from, next) => {
         Promise.all([
-          store.dispatch('files/getFiles'),
-          store.dispatch('categories/getCategories')
+          store.dispatch("files/getFiles"),
+          store.dispatch("categories/getCategories")
         ]).then(() => {
           next();
         });
@@ -43,10 +45,9 @@ export default new Router({
       name: "settings",
       component: Settings,
       beforeEnter: (to, from, next) => {
-        store.dispatch('workers/getWorkers')
-          .then(() => {
-            next();
-          })
+        store.dispatch("workers/getWorkers").then(() => {
+          next();
+        });
       },
       children: [
         {
@@ -64,10 +65,33 @@ export default new Router({
           name: "categories",
           component: Categories,
           beforeEnter: (to, from, next) => {
-            store.dispatch('categories/getCategories')
-              .then(() => {
-                next();
-              });
+            store.dispatch("categories/getCategories").then(() => {
+              next();
+            });
+          }
+        },
+        {
+          path: "fwpaths",
+          name: "FWPaths",
+          component: FWPaths,
+          beforeEnter: (to, from, next) => {
+            Promise.all([
+              store.dispatch("categories/getCategories"),
+              store.dispatch("fwpaths/getFWPaths")
+            ])
+            .then(() => {
+              next();
+            });
+          }
+        },
+        {
+          path: "filewatchers",
+          name: "fileWatchers",
+          component: FileWatchers,
+          beforeEnter: (to, from, next) => {
+            store.dispatch("watchers/getWatchers").then(() => {
+              next();
+            });
           }
         },
         {
@@ -79,8 +103,8 @@ export default new Router({
           path: "workers/:id",
           name: "editWorker",
           component: EditWorker,
-          props: (route) => {
-            return { id: Number.parseInt(route.params.id) }
+          props: route => {
+            return { id: Number.parseInt(route.params.id) };
           }
         }
       ]
@@ -91,12 +115,11 @@ export default new Router({
       component: Logs,
       beforeEnter: (to, from, next) => {
         Promise.all([
-          store.dispatch('logs/getLogs'),
-          store.dispatch('categories/getCategories')
-        ])
-          .then(() => {
-            next();
-          })
+          store.dispatch("logs/getLogs"),
+          store.dispatch("categories/getCategories")
+        ]).then(() => {
+          next();
+        });
       }
     },
     {

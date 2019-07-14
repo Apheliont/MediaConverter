@@ -495,6 +495,13 @@ module.exports = (function() {
     }
 
     async addFile(data) {
+      // исключаем возможность обработки дубликата файла(по имени файл и расширению)
+      for (const file of this.storage) {
+        if (data.fileName === file.fileName && data.extension === file.extension) {
+          return;
+        }
+      }
+      
       try {
         const id = await db.addLog(data);
         const file = new File({
@@ -504,7 +511,6 @@ module.exports = (function() {
         this.storage.push(file);
         // сразу оповещаем фронтенд новым файлом
         informClients("ADDFILE", file.filterFileData());
-        return id;
       } catch (e) {
         console.log("Ошибка в функции addFile", e.message);
       }

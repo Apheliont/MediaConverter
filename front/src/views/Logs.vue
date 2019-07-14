@@ -306,7 +306,11 @@ export default {
       });
     },
     categoryToString(id) {
-      return this.categories.find(category => category.id === id).name;
+      const categoryObj = this.categories.find(category => category.id === id);
+      if (categoryObj) {
+        return categoryObj.name;
+      }
+      return "----"
     },
     resize() {
       const viewportHeight = window.innerHeight;

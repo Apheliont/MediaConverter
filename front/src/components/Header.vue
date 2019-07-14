@@ -1,6 +1,6 @@
 <template>
   <v-toolbar class="my-header">
-    <v-toolbar-title class="title white--text">Импорт в Bram</v-toolbar-title>
+    <v-toolbar-title class="title white--text">♽МедиаⱩонвертер</v-toolbar-title>
     <v-toolbar-items>
       <v-btn flat to="/" exact class="subheading">
         <v-icon left class="white--text">home</v-icon>Главная

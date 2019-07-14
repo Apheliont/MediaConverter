@@ -1,5 +1,6 @@
 const { pool } = require("./main");
 const { workerModel } = require("../models/fileWorkerFusion");
+const watcherModel = require("../models/watcher");
 
 const createLogsQuery = `CREATE TABLE IF NOT EXISTS logs(
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -29,6 +30,21 @@ const createWorkersQuery = `CREATE TABLE IF NOT EXISTS workers(
     sourcePath VARCHAR(255) NOT NULL,
     autoConnect BOOLEAN DEFAULT true,
     description TEXT
+)`;
+
+const createWatchersQuery = `CREATE TABLE IF NOT EXISTS watchers(
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  host VARCHAR(255) NOT NULL,
+  port VARCHAR(255) NOT NULL
+)`;
+
+const createFWPathsQuery = `CREATE TABLE IF NOT EXISTS fwpaths(
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  path VARCHAR(255) NOT NULL,
+  delay INT NOT NULL,
+  netSpeed INT NOT NULL,
+  category INT,
+  FOREIGN KEY(category) REFERENCES categories (id) ON DELETE CASCADE
 )`;
 
 const createErrorsQuery = `CREATE TABLE IF NOT EXISTS errors(
@@ -77,10 +93,13 @@ module.exports = function init() {
           query(createLogsQuery),
           query(createErrorsQuery),
           query(createCategoriesQuery),
+          query(createFWPathsQuery),
           query(createWorkersQuery),
+          query(createWatchersQuery),
           query(clearOldLogs)
         ]);
         await workerModel.restoreWorkers();
+        await watcherModel.restoreWatchers();
       }
     });
   };

@@ -1,41 +1,41 @@
 version: "3"
 services:
-  worker:
-    build:
-      context: ./worker
-      dockerfile: Dockerfile
-    container_name: worker_1
-    volumes:
-      - /app/node_modules
-      - ./worker:/app
-      - ./videoDest:/app/videoDest
-      - ./videoSource:/app/videoSource
-      - ./temp:/app/temp
-    command: nodemon app.js -L
-  worker_1:
-    build:
-      context: ./worker
-      dockerfile: Dockerfile
-    container_name: worker_2
-    volumes:
-      - /app/node_modules
-      - ./worker:/app
-      - ./videoDest:/app/videoDest
-      - ./videoSource:/app/videoSource
-      - ./temp:/app/temp
-    command: nodemon app.js -L
-  server:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-    container_name: server
-    ports:
-      - "8081:8081"
-    volumes:
-      - /app/node_modules
-      - ./server:/app
-      - ./videoSource:/app/videoSource
-    command: nodemon app.js -L --ignore '*.json'
+  # worker:
+  #   build:
+  #     context: ./worker
+  #     dockerfile: Dockerfile
+  #   container_name: worker_1
+  #   volumes:
+  #     - /app/node_modules
+  #     - ./worker:/app
+  #     - ./videoDest:/app/videoDest
+  #     - ./videoSource:/app/videoSource
+  #     - ./temp:/app/temp
+  #   command: nodemon app.js -L
+  # worker_1:
+  #   build:
+  #     context: ./worker
+  #     dockerfile: Dockerfile
+  #   container_name: worker_2
+  #   volumes:
+  #     - /app/node_modules
+  #     - ./worker:/app
+  #     - ./videoDest:/app/videoDest
+  #     - ./videoSource:/app/videoSource
+  #     - ./temp:/app/temp
+  #   command: nodemon app.js -L
+  # server:
+  #   build:
+  #     context: ./server
+  #     dockerfile: Dockerfile
+  #   container_name: server
+  #   ports:
+  #     - "8081:8081"
+  #   volumes:
+  #     - /app/node_modules
+  #     - ./server:/app
+  #     - ./videoSource:/app/videoSource
+  #   command: nodemon app.js -L --ignore '*.json'
     # command: tail -f /dev/null
   front:
     build:
@@ -50,9 +50,9 @@ services:
     environment:
       - CHOKIDAR_USEPOLLING=true
     command: npm run serve
-  database:
-    image: mysql
-    container_name: database
-    environment:
-      MYSQL_ROOT_PASSWORD: Jd8#jn@h10&92gAeVb
-    command: --default-authentication-plugin=mysql_native_password
+  # database:
+  #   image: mysql
+  #   container_name: database
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: Jd8#jn@h10&92gAeVb
+  #   command: --default-authentication-plugin=mysql_native_password

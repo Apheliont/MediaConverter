@@ -57,7 +57,7 @@ module.exports = (function() {
       }
     }
   })();
-
+  // класс воркера
   class WorkerNode extends EventEmitter {
     constructor(data) {
       super();
@@ -85,16 +85,20 @@ module.exports = (function() {
           return ic >= 0 ? ic : 0;
         }
       };
-      this.socket = io(
-        `http://${data.host}:${data.port}`,
-        Object.assign({}, data.options)
-      );
-
       // слушаем если изменились категории
       // обязатель байндимся, т.к эвент эмитер передает
       // в колбак слушателя свой контекст
       category.on("updateCategories", this.updateCategories.bind(this));
+    }
 
+    // функция которая создает св-во с объектом вебсокета
+    // и навешивает обработчики на события вебсокетов
+    // вызывается из другой фукнции - connect()
+    socketIOinit() {
+      this.socket = io(
+        `http://${this.host}:${this.port}`,
+        Object.assign({}, this.options)
+      );
       // установка обработчиков событий
       this.socket.on("connect", () => {
         this.state.status = 1;
@@ -245,6 +249,7 @@ module.exports = (function() {
     }
 
     connect() {
+      this.socketIOinit();
       this.socket.open();
     }
 
@@ -272,18 +277,21 @@ module.exports = (function() {
       informAboutWorker("WORKERINFO", this.getInfo());
       // используем байнд - нужно передать контекст в функцию,
       // где само хранилище таймеров это объект со своим контекстом
-      this.lockCoresTimerId[timerID] = setTimeout((function() {
-        // если файл уже был обработан и удален, то минуем вычитание частей
-        if (this.state.fileIDs[fileID] !== undefined) {
-          this.state.fileIDs[fileID] -= parts;
-          if (this.state.fileIDs[fileID] <= 0) {
-            delete this.state.fileIDs[fileID];
+      this.lockCoresTimerId[timerID] = setTimeout(
+        function() {
+          // если файл уже был обработан и удален, то минуем вычитание частей
+          if (this.state.fileIDs[fileID] !== undefined) {
+            this.state.fileIDs[fileID] -= parts;
+            if (this.state.fileIDs[fileID] <= 0) {
+              delete this.state.fileIDs[fileID];
+            }
           }
-        }
-        delete this.lockCoresTimerId[timerID];
-        informAboutWorker("WORKERINFO", this.getInfo());
-        this.emit("tryProcessNext");
-      }).bind(this), lockTime);
+          delete this.lockCoresTimerId[timerID];
+          informAboutWorker("WORKERINFO", this.getInfo());
+          this.emit("tryProcessNext");
+        }.bind(this),
+        lockTime
+      );
       return timerID;
     }
 
@@ -322,22 +330,17 @@ module.exports = (function() {
     }
 
     getWorkers() {
-      try {
-        return Array.from(this.storage).map(worker => {
-          const newWorker = {};
-          for (let prop in worker) {
-            if (prop === "socket" || prop === "options") {
-              continue;
-            }
-            newWorker[prop] = worker[prop];
+      return this.storage.map(worker => {
+        const newWorker = {};
+        for (let prop in worker) {
+          if (prop === "socket" || prop === "options") {
+            continue;
           }
-          newWorker["autoConnect"] = worker.options.autoConnect;
-          return newWorker;
-        });
-      } catch (e) {
-        console.log("Ошибка в getWorkers", e.message);
-        throw e;
-      }
+          newWorker[prop] = worker[prop];
+        }
+        newWorker["autoConnect"] = worker.options.autoConnect;
+        return newWorker;
+      });
     }
 
     async addWorker(data) {
@@ -397,11 +400,11 @@ module.exports = (function() {
         }
         currentWorker.options.autoConnect = payload.autoConnect;
         if (currentWorker.state.status === 1) {
-          // делаем реконнект
-          currentWorker.disconnect();
-          setTimeout(() => {
-            currentWorker.connect();
-          }, 2000);
+        // делаем реконнект
+        currentWorker.disconnect();
+        setTimeout(() => {
+          currentWorker.connect();
+        }, 2000);
         }
       } catch (e) {
         console.log("Ошибка в updateWorker", e.message);

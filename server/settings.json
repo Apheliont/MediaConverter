@@ -2,7 +2,7 @@
   "uploadPath": "/app/videoSource/",
   "tempFolderName": "Temp",
   "database": {
-    "database": "media_converter",
+    "database": "localhost",
     "user": "root",
     "password": "Jd8#jn@h10&92gAeVb",
     "host": "database",
@@ -11,6 +11,12 @@
   "worker": {
     "path": "/worker",
     "autoConnect": "false",
+    "reconnection": "true",
+    "reconnectionDelay": "1000"
+  },
+  "watcher": {
+    "path": "/watcher",
+    "autoConnect": "true",
     "reconnection": "true",
     "reconnectionDelay": "1000"
   }

@@ -104,12 +104,12 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
     // нужны вложенные try catch блоки так как папки могут быть уже созданы
     // и это ОК, не нужно чтобы из-за этого падала вся программа
     try {
-      await fsPromise.mkdir(path.join(sourcePath, settings.tempFolderName));
+      await fsPromise.mkdir(path.join(settings.sourcePath, settings.tempFolderName));
     } catch (e) {
       // ошибка не важна, никак ее не обрабатываем
     } finally {
       var fileTempPath = await fsPromise.mkdtemp(
-        path.join(sourcePath, settings.tempFolderName, `${id}-`)
+        path.join(settings.sourcePath, settings.tempFolderName, `${id}-`)
       );
       await fsPromise.mkdir(path.join(fileTempPath, "prepared"));
     }

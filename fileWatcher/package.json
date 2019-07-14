@@ -1,0 +1,15 @@
+{
+  "name": "filewatcher",
+  "version": "2.0.0-a1",
+  "description": "watches for file changes in particular dirrectories",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "apheliont",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "8.0.0",
+    "socket.io": "2.2.0"
+  }
+}

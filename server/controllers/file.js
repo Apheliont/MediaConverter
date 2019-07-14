@@ -11,17 +11,6 @@ async function uploadFile(req, res) {
   res.status(200).end();
 }
 
-// API для стороннего микросервиса
-async function watched(req, res) {
-  try {
-    await fileModel.addFile(req.body);
-    // запускаем процесс попытки кодирования
-    workerModel.tryProcessNext();
-  } catch (e) {
-    res.status(500).send(e.message);
-  }
-  res.status(200).end();
-}
 
 function getFiles(req, res) {
   const files = fileModel.getFiles();
@@ -36,7 +25,6 @@ function deleteFile(req, res) {
 }
 
 module.exports = {
-  watched,
   uploadFile,
   getFiles,
   deleteFile
