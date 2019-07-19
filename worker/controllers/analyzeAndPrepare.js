@@ -3,7 +3,7 @@ const fsPromise = require("fs").promises;
 const settings = require("../settings");
 const io = require("../socket.io-server");
 const analyze = require("../processors/analyze");
-const Prepare = require("../processors/prepare");
+const prepare = require("../processors/prepare");
 
 // конвертирует время вида 00:00:00 (string) в секунды (int)
 function stringTimeToNumber(str) {
@@ -21,9 +21,10 @@ function stringTimeToNumber(str) {
 }
 
 module.exports = async function({ file, worker_timerID, file_timerID }) {
-  let { id, fileName, extension, sourcePath, startTime, endTime } = file;
+  let { id, fileName, extension, sourcePath, startTime, endTime, category } = file;
 
   try {
+    const preset = settings.getPreset(category);
     extension = extension.toLowerCase();
 
     // Если исходный путь не указан, то считаем что файл зализ через web
@@ -55,22 +56,19 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
       }
     });
 
-    const file = path.join(sourcePath, `${fileName}${extension}`);
-    const options = await analyze({ extension, file });
+
+    let { options, duration } = await analyze({ fileName, extension, sourcePath, preset });
 
     // сразу выбрасываем ошибку если duration не определен
-    if (options.duration === "N/A") {
+    if (duration === "N/A") {
       throw "Длительность файла не определена";
     }
 
     // считаем время для частичной конвертации
-    // ----------------------------------------------
-    let duration = options.duration;
-    // удаляем поле duration из options, т.к duration будет общим свойством файла
-    delete options.duration;
 
     options.partialTranscode = {
-      isValid: false
+      isValid: false,
+      startTime: 0
     };
 
     const startTimeSeconds = stringTimeToNumber(startTime);
@@ -123,15 +121,14 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
       }
     });
 
-    const prepare = new Prepare({
+    // ждем завершения подготовки и дополнительных сведений о файле:
+    // keyFrameInterval, extension, sourcePath(это новый путь), options
+    const stage_0 = await prepare({
+      preset,
       fullFileInfo,
       totalPhysicalCores: settings.totalPhysicalCores,
       destinationPath: path.join(fileTempPath, "prepared")
     });
-
-    // ждем завершения подготовки и дополнительных сведений о файле:
-    // keyFrameInterval, extension, sourcePath(это новый путь), options
-    const stage_0 = await prepare.start();
 
     // дополняем этот объект другими данными и отправляем на сервер
     stage_0.tempRootPath = fileTempPath;

@@ -2,7 +2,7 @@
   "uploadPath": "/app/videoSource/",
   "tempFolderName": "Temp",
   "database": {
-    "database": "localhost",
+    "database": "media_converter",
     "user": "root",
     "password": "Jd8#jn@h10&92gAeVb",
     "host": "database",

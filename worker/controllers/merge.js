@@ -1,4 +1,4 @@
-const Merge = require("../processors/merge");
+const merge = require("../processors/merge");
 const settings = require("../settings");
 const io = require("../socket.io-server");
 const path = require("path");
@@ -7,6 +7,7 @@ const fsPromise = fs.promises;
 
 module.exports = async function({ file, worker_timerID, file_timerID }) {
   try {
+    const { id, fileName, category, tempRootPath, partSuffix, numberOfParts } = file;
     if (
       settings.workerID === undefined ||
       settings.totalPhysicalCores === 0 ||
@@ -23,55 +24,55 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
       acknowledgement: {
         worker_timerID,
         file_timerID,
-        fileID: file.id
+        fileID: id
       }
     });
-
+    const preset = settings.getPreset(category);
+    const outputFormat = preset.outputFormat();
     // создаем папку для промежуточного хранения готового результата
     // Это хак для увеличения скорости получения итого откодированного
-    // файла. Сначало готовый результат складывается на быструю ФС
+    // файла. Сначала готовый результат складывается на быструю ФС
     // а уже от туда копируется в место назначения
-    await fsPromise.mkdir(path.join(file.tempRootPath, "final"));
+    await fsPromise.mkdir(path.join(tempRootPath, "final"));
 
     const finalInTemp = path.join(
-      file.tempRootPath,
+      tempRootPath,
       "final",
-      `${file.fileName}${file.destinationFormat}`
+      `${fileName}${outputFormat}`
     );
 
     const destinationFile = path.join(
-      settings.categories.find(cat => cat.id === Number(file.category)).path,
-      `${file.fileName}${file.destinationFormat}`
+      settings.categories.find(cat => cat.id === Number(category)).path,
+      `${fileName}${outputFormat}`
     );
 
     // воссоздаем названия файлов которые мы будем склеивать
     const filesArr = [];
-    for (let i = 1; i <= file.numberOfParts; i++) {
+    for (let i = 1; i <= numberOfParts; i++) {
       filesArr.push(
-        `${file.fileName}${file.partSuffix}${i}${file.destinationFormat}`
+        `${fileName}${partSuffix}${i}${outputFormat}`
       );
     }
 
     // инъектим данные в объект файл и отправляем его дальше
-    file.sourcePath = path.join(file.tempRootPath, "parts");
+    file.sourcePath = path.join(tempRootPath, "parts");
     file.finalInTemp = finalInTemp;
     file.filesToMerge = `concat:${filesArr.join("|")}`;
 
-    const merge = new Merge(file);
-    await merge.start();
+    await merge({ preset, file });
 
-    // копируем файл из промежуточной папки в финальную дирректорию
+    // копируем файл из промежуточной папки в финальную директорию
     io.emit("workerResponse", {
       fileInfo: {
-        id: file.id,
+        id,
         stage: 3
       }
     });
-    await fsPromise.copyFile(finalInTemp, destinationFile);
+    // await fsPromise.copyFile(finalInTemp, destinationFile);
     // если всё ок, то отправляем на сервер инфу что у файла изменился stage
     io.emit("workerResponse", {
       fileInfo: {
-        id: file.id,
+        id,
         status: 0
       }
     });
@@ -80,7 +81,7 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
     if (!(e.message && e.message.split(" ").includes("SIGKILL"))) {
       io.emit("workerResponse", {
         fileInfo: {
-          id: file.id,
+          id,
           status: 1,
           errorMessage: `Обработчик №: ${
             settings.workerID

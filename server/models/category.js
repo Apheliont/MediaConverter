@@ -76,6 +76,10 @@ module.exports = (function () {
             return filterByKeys(_categories, keys);
         }
 
+        getPriorityById(id) {
+            return _categories.find(cat => cat.id === Number(id)).priority;
+        }
+
         async delete(id) {
             await deleteCategory(id);
             this.emit('updateCategories');

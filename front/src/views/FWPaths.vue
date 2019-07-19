@@ -116,14 +116,16 @@ export default {
         {
           text: "Задержка(сек)",
           align: "left",
-          value: "delay"
+          value: "delay",
+          width: 150
         },
         {
           text: "Скорость сети(МБ/с)",
           align: "left",
-          value: "netSpeed"
+          value: "netSpeed",
+          width: 150
         },
-        { text: "Действия", value: "path", align: "left", sortable: false }
+        { text: "Действия", value: "path", align: "left", sortable: false, width: 150 }
       ],
       editedIndex: -1,
       editedItem: {

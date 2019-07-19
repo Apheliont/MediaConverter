@@ -2,7 +2,7 @@ const fsPromise = require("fs").promises;
 const util = require("util");
 const path = require("path");
 const settings = require("../settings");
-// удаляет дирректорию рекурсивно
+// удаляет директорию рекурсивно
 const rimraf = util.promisify(require("rimraf"));
 
 // удаляет исходный файл с ФС
@@ -43,9 +43,9 @@ function deleteOutputFile(outputFileData) {
 }
 // удаляет Temp папку файла и все находящиеся там файлы
 function deleteTempFolder(tempFolderPath) {
-  rimraf(tempFolderPath).catch(e => {
-    // неважно
-  });
+  // rimraf(tempFolderPath).catch(e => {
+  //   // неважно
+  // });
 }
 
 module.exports = {

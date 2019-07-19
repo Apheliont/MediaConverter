@@ -21,7 +21,13 @@ export default {
       ".wmv",
       ".mxf",
       ".m2p",
-      ".m2ts"
+      ".m2ts",
+      ".wav",
+      ".mp3",
+      ".m2p",
+      ".png",
+      ".jpg",
+      ".jpeg"
     ],
     files: [],
     uploadPercent: 0,

@@ -85,7 +85,8 @@ export default {
         {
           text: "Состояние",
           align: "left",
-          value: "host"
+          value: "host",
+          width: 150
         },
         {
           text: "Адрес хоста",
@@ -95,9 +96,10 @@ export default {
         {
           text: "Порт хоста",
           align: "left",
-          value: "port"
+          value: "port",
+          width: 150
         },
-        { text: "Действия", value: "path", align: "left", sortable: false }
+        { text: "Действия", value: "path", align: "left", sortable: false, width: 150 }
       ],
       editedIndex: -1,
       editedWatcher: {

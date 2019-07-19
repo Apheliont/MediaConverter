@@ -1,12 +1,12 @@
 const db = require("../database/main");
 let { informClients } = require("../socket.io-server");
 informClients = informClients("FILEINFO");
+const categoryModel = require("./category");
 
 module.exports = (function() {
   const lockTime = 7000; // время на которое лочится файл
   const outerMethods = {};
   const partSuffix = "_part_";
-  const destinationFormat = ".mxf";
 
   class File {
     constructor({
@@ -19,13 +19,13 @@ module.exports = (function() {
       endTime,
       sourcePath = "" // если поле пустое то воркер возмет дефолтный путь для uploadFiles
     }) {
-      this.id = id;
+      this.id = Number(id);
       this.fileName = fileName;
       this.extension = extension;
-      this.size = size;
+      this.size = Number(size);
       this.sourcePath = sourcePath;
       this.fileTempPath = undefined; // путь к темп папке в которой будут производится все манипуляции с файлом
-      this.category = category;
+      this.category = Number(category);
       this.startTime = startTime || "00:00:00";
       this.endTime = endTime || "00:00:00";
       this.processing_at = undefined;
@@ -57,6 +57,7 @@ module.exports = (function() {
       this.duration = undefined;
       this.progressOnStage_1 = [];
       this.totalPercent = 0;
+      this.priority = categoryModel.getPriorityById(this.category); // чем ниже тем более приоритетен файл
     }
 
     // функция трансформирует данные для отправки на воркер. Все ненужные поля вырезаются
@@ -67,7 +68,8 @@ module.exports = (function() {
       Object.assign(newFileData, {
         id: this.id,
         stage: this.stage,
-        fileName: this.fileName
+        fileName: this.fileName,
+        category: this.category  // по id категории сопостовляется выходной путь и пресет
       });
 
       // в зависимости от стадии файла, воркеру нужны разные данные
@@ -87,7 +89,6 @@ module.exports = (function() {
             options: JSON.parse(JSON.stringify(this["stage_0"].options)),
             keyFrameInterval: this["stage_0"].keyFrameInterval,
             lastPart: this["stage_1"].lastPart,
-            destinationFormat,
             partSuffix, // для добавления к названию части
             partsToTranscode
           });
@@ -95,11 +96,9 @@ module.exports = (function() {
         case 2:
           Object.assign(newFileData, {
             tempRootPath: this["stage_0"].tempRootPath,
-            category: this.category, // по id категории сопостовляется выходной путь
             duration: this.duration, // нужно для расчета totalFrames, для прогресбара
             numberOfParts: this["stage_1"].lastPart + 1, // нужно для воссоздания сортированного списка файлов
             partSuffix, // для воссоздания списка файлов
-            destinationFormat
           });
           break;
       }
@@ -534,7 +533,10 @@ module.exports = (function() {
 
       if (files.length > 1) {
         // сортируем чтобы в конце были самые приоритетные
-        files.sort((a, b) => b.id - a.id);
+        files.sort((a, b) => {
+          const priority = b.priority - a.priority;
+          return priority === 0 ? b.id - a.id : priority;
+        });
       }
       return files.pop();
     }

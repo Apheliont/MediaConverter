@@ -242,7 +242,7 @@ module.exports = (function() {
     }
 
     updateCategories() {
-      const categories = category.get("id", "path");
+      const categories = category.get("id", "path", "preset");
       this.socket.emit("settings", {
         categories
       });

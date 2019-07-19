@@ -36,6 +36,26 @@ module.exports = {
       this.fileIDs = {};
     }
   },
+  getPreset(categoryID) {
+    try {
+      const category = this.categories.find(
+        cat => cat.id === Number(categoryID)
+      );
+      if (!category) {
+        throw new Error("Не найдено соотвествие ID и категории");
+      } else if (!("preset" in category)) {
+        throw new Error("У категории не назначен пресет");
+      }
+      const presetName = category.preset;
+      return require(`./presets/${presetName}`);
+    } catch (e) {
+      if (e.code === "MODULE_NOT_FOUND") {
+        throw new Error(`Пресет для категории не найден в директории presets`);
+      } else {
+        throw e;
+      }
+    }
+  },
   workerID: undefined,
   physicalCores: 0,
   totalPhysicalCores: 0,

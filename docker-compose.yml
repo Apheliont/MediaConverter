@@ -1,5 +1,11 @@
-version: '3'
+version: "3"
 services:
+  database:
+      image: mysql
+      container_name: database
+      environment:
+        MYSQL_ROOT_PASSWORD: Jd8#jn@h10&92gAeVb
+      command: --default-authentication-plugin=mysql_native_password
   worker:
     build:
       context: ./worker
@@ -8,7 +14,22 @@ services:
     volumes:
       - /app/node_modules
       - ./worker:/app
+      - ./videoDest:/app/videoDest
+      - ./videoSource:/app/videoSource
+      - ./temp:/app/temp
     command: nodemon app.js -L
+  # worker_1:
+  #   build:
+  #     context: ./worker
+  #     dockerfile: Dockerfile
+  #   container_name: worker_2
+  #   volumes:
+  #     - /app/node_modules
+  #     - ./worker:/app
+  #     - ./videoDest:/app/videoDest
+  #     - ./videoSource:/app/videoSource
+  #     - ./temp:/app/temp
+  #   command: nodemon app.js -L
   server:
     build:
       context: ./server
@@ -19,7 +40,9 @@ services:
     volumes:
       - /app/node_modules
       - ./server:/app
-    command: node app.js
+      - ./videoSource:/app/videoSource
+    command: nodemon app.js -L --ignore '*.json'
+    # command: tail -f /dev/null
   front:
     build:
       context: ./front

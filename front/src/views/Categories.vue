@@ -32,6 +32,30 @@
                         clearable
                       ></v-text-field>
                     </v-flex>
+                    <v-flex>
+                      <v-layout row nowrap>
+                        <v-flex grow>
+                          <v-text-field
+                            v-model="editedItem.preset"
+                            @input="hasChanged = true"
+                            :rules="commonRules"
+                            label="Пресет"
+                            hint="Находятся в дирректории presets модуля обработчика"
+                            clearable
+                          ></v-text-field>
+                        </v-flex>
+                        <v-flex shrink class="my-priority">
+                          <v-select
+                            v-model="editedItem.priority"
+                            @input="hasChanged = true"
+                            :items="Array.from({length: 10}, (i, v) => v + 1)"
+                            dense
+                            type="number"
+                            label="Приоритет"
+                          ></v-select>
+                        </v-flex>
+                      </v-layout>
+                    </v-flex>
                   </v-layout>
                 </v-container>
               </v-form>
@@ -57,6 +81,8 @@
             <td class="text-xs-left">{{ props.item.id }}</td>
             <td class="text-xs-left">{{ props.item.name }}</td>
             <td class="text-xs-left">{{ props.item.path }}</td>
+            <td class="text-xs-left">{{ props.item.preset }}</td>
+            <td class="text-xs-left">{{ props.item.priority }}</td>
             <td class="text-xs-left">
               <v-icon class="mr-2" @click="editItem(props.item)">edit</v-icon>
               <v-icon @click="deleteItem(props.item)">delete</v-icon>
@@ -80,7 +106,8 @@ export default {
       {
         text: "ID",
         align: "left",
-        value: "id"
+        value: "id",
+        width: 50
       },
       {
         text: "Название",
@@ -88,16 +115,32 @@ export default {
         value: "name"
       },
       { text: "Путь", align: "left", value: "path" },
-      { text: "Действия", value: "name", align: "left", sortable: false }
+      {
+        text: "Пресет",
+        align: "left",
+        value: "preset",
+        width: 150
+      },
+      {
+        text: "Приоритет",
+        align: "left",
+        value: "priority",
+        width: 150
+      },
+      { text: "Действия", value: "name", align: "left", sortable: false, width: 150 }
     ],
     editedIndex: -1,
     editedItem: {
       name: "",
-      path: ""
+      path: "",
+      preset: "",
+      priority: 5
     },
     defaultItem: {
       name: "",
-      path: ""
+      path: "",
+      preset: "",
+      priority: 5
     },
     commonRules: [v => (v && v.length > 0) || "Поле не может быть пустым"]
   }),
@@ -168,6 +211,10 @@ export default {
 .my-title {
   background-color: #ececec;
   padding: 10px 20px;
+}
+
+.my-priority {
+  width: 30%;
 }
 </style>
 

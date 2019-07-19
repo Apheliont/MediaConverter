@@ -1,7 +1,7 @@
 const fsPromise = require("fs").promises;
 const path = require("path");
 const settings = require("../settings");
-const Transcode = require("../processors/transcode");
+const transcode = require("../processors/transcode");
 const io = require("../socket.io-server");
 
 module.exports = async function({ file, worker_timerID, file_timerID }) {
@@ -10,13 +10,13 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
     id,
     fileName,
     extension,
+    category,
     tempRootPath,
     options,
     keyFrameInterval,
     partsToTranscode, // массив с номерами частей
     lastPart,
-    partSuffix,
-    destinationFormat
+    partSuffix
   } = file;
   try {
     if (
@@ -50,16 +50,18 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
     } catch (e) {
       // ошибка не важна
     }
-
+    const preset = settings.getPreset(category);
+    const outputFormat = preset.outputFormat();
     const destPath = path.join(tempRootPath, "parts");
     const partsPromises = [];
 
     for (const part of partsToTranscode) {
       const destFile = path.join(
         destPath,
-        `${fileName}${partSuffix}${part + 1}${destinationFormat}`
+        `${fileName}${partSuffix}${part + 1}${outputFormat}`
       );
-      const transcode = new Transcode({
+
+      partsPromises.push(transcode({
         id,
         part,
         sourceFile,
@@ -67,9 +69,9 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
         options,
         startTime: part * keyFrameInterval,
         duration: keyFrameInterval,
-        isLast: lastPart === part
-      });
-      partsPromises.push(transcode.start());
+        isLast: lastPart === part,
+        preset
+      }));
     }
 
     await Promise.all(partsPromises);

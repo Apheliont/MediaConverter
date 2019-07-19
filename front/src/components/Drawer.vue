@@ -19,15 +19,13 @@
             <v-list-tile-title>Контроль файлов</v-list-tile-title>
           </v-list-tile>
         </template>
-        <v-list-tile class="list-tile pl-2" :to="{name: 'FWPaths'}" exact>
+        <v-list-tile class="list-tile" :to="{name: 'FWPaths'}" exact>
           <v-list-tile-action>
-            <v-icon>subject</v-icon>
           </v-list-tile-action>
           <v-list-tile-title>Пути отслеживания</v-list-tile-title>
         </v-list-tile>
-        <v-list-tile class="list-tile pl-2" :to="{name: 'fileWatchers'}" exact>
+        <v-list-tile class="list-tile" :to="{name: 'fileWatchers'}" exact>
           <v-list-tile-action>
-            <v-icon>visibility</v-icon>
           </v-list-tile-action>
           <v-list-tile-title>Наблюдатели</v-list-tile-title>
         </v-list-tile>
@@ -38,16 +36,15 @@
             <v-list-tile-title>Обработчики</v-list-tile-title>
           </v-list-tile>
         </template>
-        <v-list-tile class="list-tile pl-2" :to="{name: 'addWorker'}" exact>
+        <v-list-tile class="list-tile" :to="{name: 'addWorker'}" exact>
           <v-list-tile-action>
-            <v-icon>add</v-icon>
           </v-list-tile-action>
           <v-list-tile-title>Добавить</v-list-tile-title>
         </v-list-tile>
         <v-list-tile
           v-for="(worker, i) in workers"
           :key="i"
-          class="list-tile pl-2"
+          class="list-tile"
           :to="{ name: 'editWorker', params: { id: worker.id }}"
         >
           <v-list-tile-action>
@@ -105,10 +102,10 @@ export default {
 .drawer {
   border-radius: 0 10px 10px 0;
 }
-.sub-group {
+/* .sub-group {
   margin: 0 !important;
   padding: 0 !important;
-}
+} */
 </style>
 
 
