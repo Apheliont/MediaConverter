@@ -36,11 +36,7 @@ function checkExstension(extension) {
     ".wav",
     ".mp3",
     ".m2p",
-    ".flac",
-    ".jpeg",
-    ".jpg",
-    ".png",
-    ".bmp"
+    ".flac"
   ];
   return allowedExtension.includes(extension.toLowerCase());
 }
@@ -58,33 +54,26 @@ function outputFormat() {
 function analyzeStage({ metadata, extension }) {
   const duration = metadata.format.duration;
   // ищем все косяки исходного файла и регистрирум их в options
-  const options = {
-    audio: {
-      isAudio: false,
-      splitAudio: false,
-      isMute: false
-    },
-    isImage: false,
-    changeStreams: false,
-    badContainer: false,
-    badStreams: [],
-    timeCodeStream: false,
-    aspectRatio: {
-      definedAspect: null,
-      SAR: null,
-      width: null,
-      height: null
-    }
+  const options = {};
+  // далее идут опциональные св-ва
+  options.audio = {
+    isAudioFormat: false,
+    splitAudio: false,
+    isMute: false
   };
-  if ([".jpeg", ".jpg", ".png", ".bmp"].includes(extension.toLowerCase())) {
-    options.isImage = true;
-    options.audio.isMute = true;
-    return { options, duration };
-  }
+  options.changeStreams = false;
+  options.badContainer = false;
+  options.badStreams = [];
+  options.timeCodeStream = false;
+  options.aspectRatio = {
+    definedAspect: null,
+    SAR: null,
+    width: null,
+    height: null
+  };
 
   if ([".wav", ".m2p", ".mp3", ".flac"].includes(extension.toLowerCase())) {
-    options.audio.isAudio = true;
-    options.audio.splitAudio = true;
+    options.audio.isAudioFormat = true;
     return { options, duration };
   }
 
@@ -161,35 +150,15 @@ function analyzeStage({ metadata, extension }) {
 function preparationStage({ options, duration, inputExtension }) {
   const outputOptions = [];
   const inputOptions = [];
-  const outputExtension =
-    options.audio.isAudio || options.badContainer || options.isImage
-      ? ".mkv"
-      : inputExtension;
-
-  if (options.isImage) {
-    inputOptions.push(...["-f image2", "-framerate 25"]);
-    // outputOptions.push(
-    //   ...[
-    //     "-vf "zoompan=d=25+'50*eq(in,3)'+'100*eq(in,5)'"",
-    //   ]
-    // );
-    return {
-      outputExtension,
-      inputOptions,
-      outputOptions
-    };
-  }
-
-  if (options.audio.isAudio) {
-    inputOptions.push(...["-f lavfi", "-i color=c=black:s=1920x1280"]);
-    outputOptions.push(
-      ...["-c:a copy", "-ac 2", "-shortest", "-tune stillimage"]
-    );
-  }
+  const outputExtension = options.badContainer
+    ? ".mkv"
+    : options.isAudioFormat
+    ? outputFormat()
+    : inputExtension;
 
   if (options.changeStreams) {
     outputOptions.push(...["-map v:0", "-map a:1?", "-map a:0"]);
-  } else if (!options.audio.isAudio) {
+  } else {
     outputOptions.push("-map 0");
   }
 
@@ -204,7 +173,7 @@ function preparationStage({ options, duration, inputExtension }) {
     outputOptions.push(
       ...["-acodec pcm_s24le", "-ar 48000", "-ab 1152k", "-c:v copy"]
     );
-  } else if (!options.audio.isAudio) {
+  } else {
     outputOptions.push("-c copy");
   }
 
@@ -220,9 +189,7 @@ function preparationStage({ options, duration, inputExtension }) {
     });
   }
   // вырезаем все субтитры
-  if (!options.audio.isAudio) {
-    outputOptions.push("-sn");
-  }
+  outputOptions.push("-sn");
 
   return {
     outputExtension,
@@ -328,7 +295,7 @@ function transcodeStage({ options, duration }) {
         (1920 - options.aspectRatio.width) / 2
       )}:${Math.round((1080 - options.aspectRatio.height) / 2)},setdar=1.7777`
     );
-  } else if (!options.audio.isAudio) {
+  } else {
     outputOptions.push(
       `-vf scale=1920:${Math.round(
         1920 / options.aspectRatio.SAR
