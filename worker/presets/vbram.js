@@ -12,51 +12,90 @@
  ** 6) Функция возвращающая струку выходного формата вида .mxf...
  ** 7) Функиция возвращающая число кадров на основании длительности
  */
+const O_FORMAT = ".mxf"; // PUBLIC! Написать реализацию обязательно!
+const O_VIDEO_CODEC = "mpeg2video";
+const O_VIDEO_BITRATE = 50000000;
+const O_VIDEO_PIXEL = "yuv422p";
+const O_WIDTH = 1920;
+const O_HEIGHT = 1080;
+const O_FPS = 25;
+const O_AUDIO_SRATE = 48000;
+const O_AUDIO_CODEC = "pcm_s24le";
+const O_AUDIO_BITRATE = 1152;
+const IMAGE_DURATION = 5;
+const AUDIO_EXTENSIONS = [".wav", ".mp3", ".ogg", ".flac"];
+const IMAGE_EXTENSIONS = [".jpeg", ".jpg", ".png", ".bmp", ".tif"];
+const VIDEO_EXTENSIONS = [
+  ".3gp",
+  ".avi",
+  ".f4v",
+  ".flv",
+  ".h264",
+  ".m4v",
+  ".mkv",
+  ".mov",
+  ".mp4",
+  ".mpeg",
+  ".mpg",
+  ".mts",
+  ".ts",
+  ".vob",
+  ".webm",
+  ".wmv",
+  ".mxf",
+  ".m2ts",
+  ".m2p"
+];
+
 function checkExstension(extension) {
   const allowedExtension = [
-    ".3gp",
-    ".avi",
-    ".f4v",
-    ".flv",
-    ".h264",
-    ".m4v",
-    ".mkv",
-    ".mov",
-    ".mp4",
-    ".mpeg",
-    ".mpg",
-    ".mts",
-    ".ts",
-    ".vob",
-    ".webm",
-    ".wmv",
-    ".mxf",
-    ".m2p",
-    ".m2ts",
-    ".wav",
-    ".mp3",
-    ".m2p",
-    ".flac",
-    ".jpeg",
-    ".jpg",
-    ".png",
-    ".bmp"
+    ...AUDIO_EXTENSIONS,
+    ...IMAGE_EXTENSIONS,
+    ...VIDEO_EXTENSIONS
   ];
   return allowedExtension.includes(extension.toLowerCase());
 }
 
-function totalFrames(duration) {
-  return duration * 25;
+function ffmpegCommandBuilder({
+  input,
+  inputOptions = [],
+  outputOptions = []
+}) {
+  if (input !== undefined) {
+    return function(ffmpeg) {
+      ffmpeg
+        .input(input)
+        .inputOptions(inputOptions)
+        .outputOptions(outputOptions);
+    };
+  }
+  return function(ffmpeg) {
+    ffmpeg.inputOptions(inputOptions).outputOptions(outputOptions);
+  };
 }
 
-function outputFormat() {
-  return ".mxf";
+function totalFrames(duration) {
+  return duration * O_FPS;
+}
+//-----------------------------------RESCUE-------------------------------------------
+// попытка дать файлу второй шанс прежде чем выбросить ошибку.
+// Частое явление файлы с поврежденными метаданными, недокачанные и т.д
+// у которых отсутствует поле duration. Это претендент на вылет с ошибкой
+function rescueStage({ inputExtension }) {
+  const outputExtension = inputExtension;
+  const inputOptions = [];
+  const outputOptions = ["-vcodec copy", "-acodec copy"];
+  const ffmpegCommands = ffmpegCommandBuilder({ inputOptions, outputOptions });
+  return {
+    ffmpegCommands,
+    outputExtension
+  };
 }
 // -----------------------------------ANALYZE-----------------------------------------
-// принимает метаданные файла после анализа ffprobe и расширение, возвращает объект options и
-// св-во duration
+// принимает метаданные файла после анализа ffprobe и расширение,
+// возвращает объект options и св-во duration
 function analyzeStage({ metadata, extension }) {
-  const duration = metadata.format.duration;
+  let duration = metadata.format.duration;
   // ищем все косяки исходного файла и регистрирум их в options
   const options = {
     audio: {
@@ -64,6 +103,9 @@ function analyzeStage({ metadata, extension }) {
       splitAudio: false,
       isMute: false
     },
+    // это дефолт для файлов без видео потока.
+    // Если видео есть, то поле перезапишется
+    originalFrameRate: O_FPS,
     isImage: false,
     changeStreams: false,
     badContainer: false,
@@ -76,15 +118,16 @@ function analyzeStage({ metadata, extension }) {
       height: null
     }
   };
-  if ([".jpeg", ".jpg", ".png", ".bmp"].includes(extension.toLowerCase())) {
+  if (IMAGE_EXTENSIONS.includes(extension.toLowerCase())) {
     options.isImage = true;
-    options.audio.isMute = true;
-    return { options, duration };
+    duration = IMAGE_DURATION;
+    //options.audio.isMute будет установленно далее
   }
 
-  if ([".wav", ".m2p", ".mp3", ".flac"].includes(extension.toLowerCase())) {
+  if (AUDIO_EXTENSIONS.includes(extension.toLowerCase())) {
     options.audio.isAudio = true;
     options.audio.splitAudio = true;
+    // сразу возвращаем объект options, дальше никакие проверки для аудио не актуальны
     return { options, duration };
   }
 
@@ -108,6 +151,9 @@ function analyzeStage({ metadata, extension }) {
     // проверяем если контейнер является закрытым для кодирования в него
     if (
       firstAudioStream.codec_name === "pcm_bluray" ||
+      firstAudioStream.codec_name === "pcm_s16be" ||
+      firstAudioStream.codec_name === "pcm_s32le" ||
+      firstAudioStream.codec_name === "pcm_dvd" ||
       [".m2ts", ".m2p"].includes(extension) ||
       videoStream.codec_name === "dvvideo"
     ) {
@@ -140,71 +186,121 @@ function analyzeStage({ metadata, extension }) {
       options.aspectRatio.height = videoStream.height;
       options.aspectRatio.width = videoStream.width;
     }
+    // фрэймрейт у оригинального файла, для расчетов процентов на стадии подготовки
+    const FPSinDivisionForm = videoStream.r_frame_rate.split("/");
+    const numerator = FPSinDivisionForm[0];
+    const denumerator = FPSinDivisionForm[1];
+    if (isFinite(numerator / denumerator)) {
+      options.originalFrameRate = numerator / denumerator;
+    }
+  } else {
+    // если видео-стрим не найден, и при этом файл не принадлежит к чистым аудио форматам
+    // предполагаем что это медиа контейнер с аудио дорожкой
+    options.audio.isAudio = true;
   }
 
-  // ищем все неопознанные стримы которые будем вырезать и записываем их
-  // индексы
+  // ищем все отличные от аудио и видео стримы
+  // которые будем вырезать и записываем их индексы
   metadata.streams.forEach(stream => {
     if (stream.codec_tag_string === "tmcd") {
       options.timeCodeStream = true;
     }
-    if (stream.codec_name === "unknown") {
+    if (!(stream.codec_type === "video" || stream.codec_type === "audio")) {
       options.badStreams.push(+stream.index);
     }
   });
-
   return { options, duration };
 }
 // -------------------------PREPARE-----------------------------
 // готовит outputOptions, inputOptions
 // и extension(расширение на выходе этой стадии)
-function preparationStage({ options, duration, inputExtension }) {
-  const outputOptions = [];
+function preparationStage({
+  options,
+  duration,
+  inputExtension
+}) {
   const inputOptions = [];
-  const outputExtension =
-    options.audio.isAudio || options.badContainer || options.isImage
-      ? ".mkv"
-      : inputExtension;
+  const outputOptions = [];
+  const outputExtension = options.badContainer
+    ? ".mov"
+    : options.isImage || options.audio.isAudio
+    ? O_FORMAT
+    : inputExtension;
 
+  // если файл - картинка
   if (options.isImage) {
-    inputOptions.push(...["-f image2", "-framerate 25"]);
-    // outputOptions.push(
-    //   ...[
-    //     "-vf "zoompan=d=25+'50*eq(in,3)'+'100*eq(in,5)'"",
-    //   ]
-    // );
-    return {
-      outputExtension,
+    const ih =
+      options.aspectRatio.height % 2 === 0
+        ? options.aspectRatio.height
+        : options.aspectRatio.height + 1;
+    const iw =
+      options.aspectRatio.width % 2 === 0
+        ? options.aspectRatio.width
+        : options.aspectRatio.width + 1;
+
+    inputOptions.push(...["-loop 1", `-framerate ${O_FPS}`]);
+    outputOptions.push(
+      ...[
+        `-vf scale=${iw}:${ih}`,
+        "-c:v libx264",
+        `-pix_fmt ${O_VIDEO_PIXEL}`,
+        `-t ${duration}`
+      ]
+    );
+    const ffmpegCommands = ffmpegCommandBuilder({
       inputOptions,
       outputOptions
+    });
+    // для картинки больше никакие данные не нужны, возвращаем настройки
+    return {
+      ffmpegCommands,
+      outputExtension
     };
   }
 
-  if (options.audio.isAudio) {
-    inputOptions.push(...["-f lavfi", "-i color=c=black:s=1920x1280"]);
-    outputOptions.push(
-      ...["-c:a copy", "-ac 2", "-shortest", "-tune stillimage"]
-    );
-  }
-
-  if (options.changeStreams) {
-    outputOptions.push(...["-map v:0", "-map a:1?", "-map a:0"]);
-  } else if (!options.audio.isAudio) {
-    outputOptions.push("-map 0");
-  }
-
+  // позиция имеет значение!
   if (options.partialTranscode.isValid) {
     inputOptions.push(
       ...[`-ss ${options.partialTranscode.startTime}`, `-t ${duration}`]
     );
   }
+  // если файл - аудио файл
+  if (options.audio.isAudio) {
+    inputOptions.push(
+      ...["-f lavfi", `-i color=c=black:s=${O_WIDTH}x${O_HEIGHT}`]
+    );
+    outputOptions.push(
+      ...["-ac 2", `-ar ${O_AUDIO_SRATE}`, "-shortest", "-tune stillimage"]
+    );
+    // настройки длительности получили, черную подложку тоже.
+    // Возвращаем данные, дальше ловить нечего
+    const ffmpegCommands = ffmpegCommandBuilder({
+      inputOptions,
+      outputOptions
+    });
+    return {
+      ffmpegCommands,
+      outputExtension
+    };
+  }
+
+  if (options.changeStreams) {
+    outputOptions.push(...["-map v:0", "-map a:1?", "-map a:0"]);
+  } else {
+    outputOptions.push("-map 0");
+  }
 
   if (options.badContainer) {
     inputOptions.push("-fflags +genpts");
     outputOptions.push(
-      ...["-acodec pcm_s24le", "-ar 48000", "-ab 1152k", "-c:v copy"]
+      ...[
+        `-acodec ${O_AUDIO_CODEC}`,
+        `-ar ${O_AUDIO_SRATE}`,
+        `-ab ${O_AUDIO_BITRATE}k`,
+        "-c:v copy"
+      ]
     );
-  } else if (!options.audio.isAudio) {
+  } else {
     outputOptions.push("-c copy");
   }
 
@@ -220,26 +316,45 @@ function preparationStage({ options, duration, inputExtension }) {
     });
   }
   // вырезаем все субтитры
-  if (!options.audio.isAudio) {
-    outputOptions.push("-sn");
-  }
+  outputOptions.push("-sn");
 
+  const ffmpegCommands = ffmpegCommandBuilder({ inputOptions, outputOptions });
   return {
-    outputExtension,
-    inputOptions,
-    outputOptions
+    ffmpegCommands,
+    outputExtension
   };
 }
 //---------------------------------TRANSCODE STAGE ---------------------------
 function transcodeStage({ options, duration }) {
+  let input;
   const outputOptions = [];
   const inputOptions = [];
   const totalFramesInPart = totalFrames(duration);
 
-  if (options.isMute) {
-    inputOptions.push(
-      ...["-i anullsrc=channel_layout=2:sample_rate=48000", "-f lavfi"]
-    );
+  // общие параметры выходного файла
+  outputOptions.push(
+    ...[
+      `-vcodec ${O_VIDEO_CODEC}`,
+      `-b:v ${O_VIDEO_BITRATE}`,
+      `-minrate ${O_VIDEO_BITRATE}`,
+      `-maxrate ${O_VIDEO_BITRATE}`,
+      `-pix_fmt ${O_VIDEO_PIXEL}`,
+      `-r ${O_FPS}`,
+      "-bf 2",
+      "-flags +cgop",
+      "-b_strategy 0",
+      "-mpv_flags +strict_gop",
+      "-sc_threshold 1000000000",
+      "-flags +ildct+ilme",
+      "-top 1",
+      `-c:a ${O_AUDIO_CODEC}`,
+      `-ar ${O_AUDIO_SRATE}`,
+      `-ab ${O_AUDIO_BITRATE}k`
+    ]
+  );
+  if (options.audio.isMute) {
+    input = `anullsrc=channel_layout=2:sample_rate=${O_AUDIO_SRATE}`;
+    inputOptions.push("-f lavfi");
     outputOptions.push(
       ...[
         "-filter_complex",
@@ -247,116 +362,77 @@ function transcodeStage({ options, duration }) {
         "-map 0:v:0",
         "-map [o1]",
         "-map [o2]",
-        "-f mxf",
-        "-vcodec mpeg2video",
-        "-b:v 50000000",
-        "-minrate 50000000",
-        "-maxrate 50000000",
-        "-r 25",
-        "-bf 2",
-        "-flags +cgop",
-        "-b_strategy 0",
-        "-mpv_flags +strict_gop",
-        "-sc_threshold 1000000000",
-        "-pix_fmt yuv422p",
-        "-flags +ildct+ilme",
-        "-top 1",
-        "-c:a pcm_s24le",
-        "-ab 1152k"
+        "-shortest"
       ]
     );
-  } else if (options.splitAudio) {
+  } else if (options.audio.splitAudio) {
     outputOptions.push(
       ...[
         "-filter_complex",
         "[0:1:a]channelsplit[a1][a2]", // разбиваем 1 стерео на 2 моно
         "-map 0:v:0",
         "-map [a1]",
-        "-map [a2]",
-        "-f mxf",
-        "-vcodec mpeg2video",
-        "-b:v 50000000",
-        "-minrate 50000000",
-        "-maxrate 50000000",
-        "-r 25",
-        "-bf 2",
-        "-flags +cgop",
-        "-b_strategy 0",
-        "-mpv_flags +strict_gop",
-        "-sc_threshold 1000000000",
-        "-pix_fmt yuv422p",
-        "-flags +ildct+ilme",
-        "-top 1",
-        "-c:a pcm_s24le",
-        "-ar 48000",
-        "-ab 1152k"
+        "-map [a2]"
       ]
     );
   } else {
-    outputOptions.push(
-      ...[
-        "-map 0",
-        "-f mxf",
-        "-vcodec mpeg2video",
-        "-b:v 50000000",
-        "-minrate 50000000",
-        "-maxrate 50000000",
-        "-r 25",
-        "-bf 2",
-        "-flags +cgop",
-        "-b_strategy 0",
-        "-mpv_flags +strict_gop",
-        "-sc_threshold 1000000000",
-        "-pix_fmt yuv422p",
-        "-flags +ildct+ilme",
-        "-top 1",
-        "-c:a pcm_s24le",
-        "-ar 48000",
-        "-ab 1152k"
-      ]
-    );
+    outputOptions.push(...["-map 0"]);
   }
 
-  // пытаемся исправить aspect ratio
-  if (options.aspectRatio.definedAspect === "16:9") {
-    outputOptions.push("-s 1920:1080");
-  } else if (options.aspectRatio.SAR < 1.777) {
-    outputOptions.push(
-      `-vf scale=${Math.round(
-        1080 * options.aspectRatio.SAR
-      )}:1080,pad=1920:1080:${Math.round(
-        (1920 - options.aspectRatio.width) / 2
-      )}:${Math.round((1080 - options.aspectRatio.height) / 2)},setdar=1.7777`
-    );
-  } else if (!options.audio.isAudio) {
-    outputOptions.push(
-      `-vf scale=1920:${Math.round(
-        1920 / options.aspectRatio.SAR
-      )},pad=1920:1080:${Math.round(
-        (1920 - options.aspectRatio.width) / 2
-      )}:${Math.round((1080 - options.aspectRatio.height) / 2)},setdar=1.7777`
-    );
+  //пытаемся исправить aspect ratio
+  if (!options.audio.isAudio) {
+    if (options.aspectRatio.definedAspect === "16:9") {
+      outputOptions.push(`-s ${O_WIDTH}:${O_HEIGHT}`);
+    } else if (options.aspectRatio.SAR < 1.777) {
+      outputOptions.push(
+        `-vf scale=${Math.round(
+          O_HEIGHT * options.aspectRatio.SAR
+        )}:${O_HEIGHT},pad=${O_WIDTH}:${O_HEIGHT}:${Math.round(
+          (O_WIDTH - options.aspectRatio.width) / 2
+        )}:${Math.round(
+          (O_HEIGHT - options.aspectRatio.height) / 2
+        )},setdar=16/9`
+      );
+    } else {
+      outputOptions.push(
+        `-vf scale=${O_WIDTH}:${Math.round(
+          O_WIDTH / options.aspectRatio.SAR
+        )},pad=${O_WIDTH}:${O_HEIGHT}:${Math.round(
+          (O_WIDTH - options.aspectRatio.width) / 2
+        )}:${Math.round(
+          (O_HEIGHT - options.aspectRatio.height) / 2
+        )},setdar=16/9`
+      );
+    }
   }
-  return {
+
+  const ffmpegCommands = ffmpegCommandBuilder({
+    input,
     inputOptions,
-    outputOptions,
+    outputOptions
+  });
+
+  return {
+    ffmpegCommands,
     totalFramesInPart
   };
 }
 // -----------------------------MERGE STAGE------------------------------------
 
-function mergeStage(duration) {
+function mergeStage({ duration }) {
   const outputOptions = ["-map 0", "-c copy"];
 
+  const ffmpegCommands = ffmpegCommandBuilder({ outputOptions });
   return {
-    outputOptions,
+    ffmpegCommands,
     totalFrames: totalFrames(duration)
   };
 }
 
 module.exports = {
+  rescueStage,
   checkExstension,
-  outputFormat,
+  O_FORMAT,
   analyzeStage,
   preparationStage,
   transcodeStage,

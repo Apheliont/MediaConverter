@@ -5,9 +5,9 @@ const path = require("path");
 const fs = require("fs");
 const fsPromise = fs.promises;
 
-module.exports = async function({ file, worker_timerID, file_timerID }) {
+module.exports = async function ({ file, worker_timerID, file_timerID }) {
+  const { id, fileName, category, tempRootPath, partSuffix, numberOfParts } = file;
   try {
-    const { id, fileName, category, tempRootPath, partSuffix, numberOfParts } = file;
     if (
       settings.workerID === undefined ||
       settings.totalPhysicalCores === 0 ||
@@ -28,7 +28,7 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
       }
     });
     const preset = settings.getPreset(category);
-    const outputFormat = preset.outputFormat();
+    const outputFormat = preset.O_FORMAT;
     // создаем папку для промежуточного хранения готового результата
     // Это хак для увеличения скорости получения итого откодированного
     // файла. Сначала готовый результат складывается на быструю ФС
@@ -41,7 +41,7 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
       `${fileName}${outputFormat}`
     );
 
-    const destinationFile = path.join(
+    const outputFile = path.join(
       settings.categories.find(cat => cat.id === Number(category)).path,
       `${fileName}${outputFormat}`
     );
@@ -57,7 +57,7 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
     // инъектим данные в объект файл и отправляем его дальше
     file.sourcePath = path.join(tempRootPath, "parts");
     file.finalInTemp = finalInTemp;
-    file.filesToMerge = `concat:${filesArr.join("|")}`;
+    file.input = `concat:${filesArr.join("|")}`;
 
     await merge({ preset, file });
 
@@ -68,7 +68,8 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
         stage: 3
       }
     });
-    // await fsPromise.copyFile(finalInTemp, destinationFile);
+    
+    await fsPromise.copyFile(finalInTemp, outputFile);
     // если всё ок, то отправляем на сервер инфу что у файла изменился stage
     io.emit("workerResponse", {
       fileInfo: {

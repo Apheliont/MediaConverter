@@ -8,29 +8,26 @@ const io = require("../socket.io-server");
 FfmpegCommand.setFfmpegPath(ffmpeg.path);
 FfmpegCommand.setFfprobePath(ffprobe.path);
 
-module.exports = async function transcode({
+module.exports = function transcode({
   id,
   part,
-  sourceFile,
-  destFile,
+  inputFile,
+  outputFile,
   startTime,
   duration,
   options,
   isLast,
   preset
 }) {
-  const {
-    inputOptions,
-    outputOptions,
-    totalFramesInPart
-  } = preset.transcodeStage({ options, duration });
   // для ускорения конвертации используем хак ffmpeg - быстрый, но неточный поиск в
   // inputOptions он ищет по key frames. Остаток пути проходится медленным поиском
-  // он перебирает каждый кадр за кадром. Таким образом получаем и быстро и точно
+  // он перебирает каждый кадр. Таким образом получаем и быстро и точно
+  const outputOptions = [];
+  const inputOptions = [];
 
   let fastSeekStartTime;
   let slowSeekStartTime;
-  const FSLOW_DELTA = 1; // 1 секунда на медленный поиск для точного попадания в keyFrame
+  const FSLOW_DELTA = 2; // X секунд на медленный поиск для точного попадания в keyFrame
   if (startTime >= 2) {
     fastSeekStartTime = startTime - FSLOW_DELTA;
     slowSeekStartTime = FSLOW_DELTA;
@@ -44,8 +41,13 @@ module.exports = async function transcode({
     outputOptions.push(`-t ${duration}`);
   }
 
+  const { ffmpegCommands, totalFramesInPart } = preset.transcodeStage({
+    options,
+    duration
+  });
+
   return new Promise((resolve, reject) => {
-    const command = new FfmpegCommand(sourceFile)
+    const command = new FfmpegCommand(inputFile)
       .inputOptions(inputOptions)
       .on("end", () => {
         settings.condition.deleteFileCommand(id, command);
@@ -57,16 +59,18 @@ module.exports = async function transcode({
         reject(err);
       })
       .on("progress", progress => {
+        const percent = Math.round((100 * progress.frames) / totalFramesInPart);
         io.emit("workerResponse", {
           fileProgress: {
             id,
-            progress: Math.round((100 * progress.frames) / totalFramesInPart),
+            progress: percent <= 100 ? percent : 100,
             part
           }
         });
       })
+      .preset(ffmpegCommands)
       .outputOptions(outputOptions)
-      .save(destFile);
+      .save(outputFile);
     // добавляем объект command для возможности прервать кодирование
     settings.condition.addFileCommand(id, command);
   });

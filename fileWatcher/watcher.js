@@ -36,7 +36,7 @@ module.exports = new (class {
             // параметры нужно подбирать экспериментальным путем
             // Math.pow(10, -3) это приближенное значение от выражения 1000ms * 1 / 1024 ** 2
             const delayTime =
-              Math.ceil(firstProbe.size / (fwdata.netSpeed)) * 0.001 +
+              Math.ceil(firstProbe.size / fwdata.netSpeed) * 0.001 +
               fwdata.delay * 1000;
             await new Promise(resolve => setTimeout(resolve, delayTime));
             const secondProbe = await fsPromise.stat(
@@ -76,7 +76,7 @@ module.exports = new (class {
         .access(fwdata.path)
         .then(() => setWatcher(fwdata))
         .catch(e => {
-          console.log("Такого пути вероятно нет: ", e);
+          // такого пути нет, ошибка будет отображена на фронте
         });
     }
   }

@@ -10,13 +10,13 @@ FfmpegCommand.setFfmpegPath(ffmpeg.path);
 FfmpegCommand.setFfprobePath(ffprobe.path);
 
 module.exports = function merge({ preset, file }) {
-  const { id, sourcePath, finalInTemp, duration, filesToMerge } = file;
-  const { outputOptions, totalFrames } = preset.mergeStage(duration);
+  const { id, sourcePath, finalInTemp, duration, input } = file;
+  const { ffmpegCommands, totalFrames } = preset.mergeStage({ duration });
 
   process.chdir(sourcePath);
   return new Promise((resolve, reject) => {
     const command = new FfmpegCommand()
-      .input(filesToMerge)
+      .input(input)
       .on("end", () => {
         process.chdir(path.join(sourcePath, "..", ".."));
         // удаляем объект command котрый используется для остановки кодирования
@@ -37,7 +37,7 @@ module.exports = function merge({ preset, file }) {
         settings.condition.deleteFileCommand(id, command);
         reject(err);
       })
-      .outputOptions(outputOptions)
+      .preset(ffmpegCommands)
       .save(finalInTemp);
     // добавляем объект command для возможности прервать кодирование
     settings.condition.addFileCommand(id, command);

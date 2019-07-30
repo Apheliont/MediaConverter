@@ -54,7 +54,7 @@
         >
           <template slot="items" slot-scope="props">
             <td class="text-xs-left">
-              <v-icon v-if="props.item.status === 1" color="light-green accent-4">link</v-icon>
+              <v-icon v-if="props.item.status === 1" color="green accent-4">link</v-icon>
               <v-icon v-else>link_off</v-icon>
             </td>
             <td class="text-xs-left">{{ props.item.host }}</td>

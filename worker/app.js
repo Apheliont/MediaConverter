@@ -11,7 +11,7 @@ const merge = require("./controllers/merge");
 async function init() {
   try {
     const { cores } = await si.cpu();
-    settings.physicalCores = cores / 2;
+    settings.physicalCores = cores > 1 ? cores / 2 : 1;
 
     io.on("connection", socket => {
       socket.emit("workerResponse", {

@@ -150,7 +150,7 @@ export default {
       }
     },
     coreAvailability() {
-    return `${this.worker.state.idleCores} / ${this.worker.state.physicalCores}`
+    return `${this.worker.state.idleCores * 2} / ${this.worker.state.physicalCores * 2}`
     }
   },
   watch: {

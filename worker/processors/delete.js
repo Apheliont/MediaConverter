@@ -43,9 +43,9 @@ function deleteOutputFile(outputFileData) {
 }
 // удаляет Temp папку файла и все находящиеся там файлы
 function deleteTempFolder(tempFolderPath) {
-  // rimraf(tempFolderPath).catch(e => {
-  //   // неважно
-  // });
+  rimraf(tempFolderPath).catch(e => {
+    // неважно
+  });
 }
 
 module.exports = {

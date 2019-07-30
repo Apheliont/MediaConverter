@@ -10,38 +10,26 @@ FfmpegCommand.setFfmpegPath(ffmpeg.path);
 FfmpegCommand.setFfprobePath(ffprobe.path);
 
 module.exports = function prepare({
+  id,
+  fileName,
+  extension: inputExtension,
+  sourcePath,
   preset,
-  destinationPath,
-  inputFileInfo,
+  rescuePath
 }) {
-  const {
-    id,
-    fileName,
-    duration,
-    options,
-    extension: inputExtension,
-    sourcePath,
-  } = inputFileInfo;
+  const inputFile = path.join(sourcePath, `${fileName}${inputExtension}`);
 
-  const interval = Math.floor(duration / settings.totalPhysicalCores);
-  const keyFrameInterval = interval < 1 ? 1 : interval;
-
-  const {
-    ffmpegCommands,
-    outputExtension
-  } = preset.preparationStage({
-    options,
-    duration,
+  const { ffmpegCommands, outputExtension } = preset.rescueStage({
     inputExtension
   });
-  
-  const inputFile = path.join(sourcePath, `${fileName}${inputExtension}`);
-  const outputFile = path.join(
-    destinationPath,
-    `${fileName}${outputExtension}`
-  );
 
-  const totalFrames = options.originalFrameRate * duration;
+  // можно переопределить
+  const rescuedFileName = fileName;
+
+  const outputFile = path.join(
+    rescuePath,
+    `${rescuedFileName}${outputExtension}`
+  );
 
   return new Promise((resolve, reject) => {
     const command = new FfmpegCommand(inputFile)
@@ -50,17 +38,8 @@ module.exports = function prepare({
         settings.condition.deleteFileCommand(id, command);
         // возвращаем доп данные о файле
         resolve({
-          keyFrameInterval: keyFrameInterval,
-          extension: outputExtension,
-          options
-        });
-      })
-      .on("progress", progress => {
-        io.emit("workerResponse", {
-          fileProgress: {
-            id,
-            progress: Math.round((100 * progress.frames) / totalFrames)
-          }
+          rescuedFileName: fileName,
+          rescuedExtension: outputExtension
         });
       })
       .on("error", (err, stdout, stderr) => {
@@ -68,10 +47,6 @@ module.exports = function prepare({
         reject(stderr);
       })
       .preset(ffmpegCommands)
-      .outputOptions([
-        "-force_key_frames",
-        `expr:gte(t, n_forced * ${keyFrameInterval})`
-      ])
       .save(outputFile);
     // добавляем в объект command для последующей возможности остановить процесс кодирования
     settings.condition.addFileCommand(id, command);

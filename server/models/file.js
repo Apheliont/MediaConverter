@@ -69,7 +69,7 @@ module.exports = (function() {
         id: this.id,
         stage: this.stage,
         fileName: this.fileName,
-        category: this.category  // по id категории сопостовляется выходной путь и пресет
+        category: this.category // по id категории сопостовляется выходной путь и пресет
       });
 
       // в зависимости от стадии файла, воркеру нужны разные данные
@@ -98,7 +98,7 @@ module.exports = (function() {
             tempRootPath: this["stage_0"].tempRootPath,
             duration: this.duration, // нужно для расчета totalFrames, для прогресбара
             numberOfParts: this["stage_1"].lastPart + 1, // нужно для воссоздания сортированного списка файлов
-            partSuffix, // для воссоздания списка файлов
+            partSuffix // для воссоздания списка файлов
           });
           break;
       }
@@ -121,9 +121,14 @@ module.exports = (function() {
       const timerID = Date.now();
 
       const clearTimerID = () => {
-        delete this.lockFileTimerId[workerID][timerID];
-        if (Object.keys(this.lockFileTimerId[workerID]).length === 0) {
-          delete this.lockFileTimerId[workerID];
+        if (
+          workerID in this.lockFileTimerId &&
+          timerID in this.lockFileTimerId[workerID]
+        ) {
+          delete this.lockFileTimerId[workerID][timerID];
+          if (Object.keys(this.lockFileTimerId[workerID]).length === 0) {
+            delete this.lockFileTimerId[workerID];
+          }
         }
       };
       // рассматриваем разные случаи
@@ -131,18 +136,20 @@ module.exports = (function() {
         this[`stage_${this.stage}`].workerID = workerID;
         this.status = 2;
         // устанавливаем таймер
-        this.lockFileTimerId[workerID][timerID] = setTimeout((function() {
-          console.log('\x1b[33m%s\x1b[0m', `Файловый таймер! ID = ${this.id}`);
-          // вдруг файл уже удалили?
-          if (this) {
-            // возвращаем как было
-            this[`stage_${this.stage}`].workerID = undefined;
-            this.status = 3;
-            // удаляем ключ и значение за собой
-            clearTimerID();
-            informClients("UPDATEFILE", this.filterFileData());
-          }
-        }).bind(this), lockTime);
+        this.lockFileTimerId[workerID][timerID] = setTimeout(
+          function () {
+            // вдруг файл уже удалили?
+            if (this) {
+              // возвращаем как было
+              this[`stage_${this.stage}`].workerID = undefined;
+              this.status = 3;
+              // удаляем ключ и значение за собой
+              clearTimerID();
+              informClients("UPDATEFILE", this.filterFileData());
+            }
+          }.bind(this),
+          lockTime
+        );
       } else {
         const pendingParts = new Set(this["stage_1"].currentTranscode[3]);
         // берем ссылку на объект {workerID: Set(parts))
@@ -167,35 +174,40 @@ module.exports = (function() {
         this.status = 2;
 
         // устанавливаем таймер который после срабатывания вернет все назад
-        this.lockFileTimerId[workerID][timerID] = setTimeout((function() {
-          if (this) {
-            // это не копии а ссылки на объекты Set, т.к отката нет, работаем "in place"
-            const pendingParts = this["stage_1"].currentTranscode[3];
-            // если воркер был отключен и эта инфа поступила на сервер
-            // сервер сделает "releaseFiles" которая удалит связи воркера и файла
-            // надо удостовериться что связь есть
-            let progressParts = undefined;
-            if (workerID in this["stage_1"].currentTranscode[2]) {
-              progressParts = this["stage_1"].currentTranscode[2][workerID];
+        this.lockFileTimerId[workerID][timerID] = setTimeout(
+          function() {
+            if (this) {
+              // это не копии а ссылки на объекты Set, т.к отката нет, работаем "in place"
+              const pendingParts = this["stage_1"].currentTranscode[3];
+              // если воркер был отключен и эта инфа поступила на сервер
+              // сервер сделает "releaseFiles" которая удалит связи воркера и файла
+              // надо удостовериться что связь есть
+              let progressParts = undefined;
+              if (workerID in this["stage_1"].currentTranscode[2]) {
+                progressParts = this["stage_1"].currentTranscode[2][workerID];
+              }
+              for (let part of parts) {
+                pendingParts.add(part);
+                if (progressParts) progressParts.delete(part);
+              }
+              // удаляем все свойство если Set с частями в процессе пустой
+              if (progressParts && progressParts.size === 0) {
+                delete this["stage_1"].currentTranscode[2][workerID];
+              }
+              // если никакая из частей в данный момент не кодируется, можем поставить статус "3"
+              if (
+                Object.keys(this["stage_1"].currentTranscode[3]).length === 0
+              ) {
+                this.status = 3;
+              }
+              // удаляем ключ и значение за собой
+              clearTimerID();
+              // оповещаем фронтэнд
+              informClients("UPDATEFILE", this.filterFileData());
             }
-            for (let part of parts) {
-              pendingParts.add(part);
-              if (progressParts) progressParts.delete(part);
-            }
-            // удаляем все свойство если Set с частями в процессе пустой
-            if (progressParts && progressParts.size === 0) {
-              delete this["stage_1"].currentTranscode[2][workerID];
-            }
-            // если никакая из частей в данный момент не кодируется, можем поставить статус "3"
-            if (Object.keys(this["stage_1"].currentTranscode[3]).length === 0) {
-              this.status = 3;
-            }
-            // удаляем ключ и значение за собой
-            clearTimerID();
-            // оповещаем фронтэнд
-            informClients("UPDATEFILE", this.filterFileData());
-          }
-        }).bind(this), lockTime);
+          }.bind(this),
+          lockTime
+        );
       }
 
       // оповещаем фронтэнд
@@ -214,9 +226,11 @@ module.exports = (function() {
           return (
             10 +
             Math.round(
-              this.progressOnStage_1.reduce((sum, next) => {
+              (this.progressOnStage_1.reduce((sum, next) => {
                 return sum + next;
-              }, 0) * 0.7 / this.progressOnStage_1.length
+              }, 0) *
+                0.7) /
+                this.progressOnStage_1.length
             )
           );
         case 2:
@@ -496,11 +510,14 @@ module.exports = (function() {
     async addFile(data) {
       // исключаем возможность обработки дубликата файла(по имени файл и расширению)
       for (const file of this.storage) {
-        if (data.fileName === file.fileName && data.extension === file.extension) {
+        if (
+          data.fileName === file.fileName &&
+          data.extension === file.extension
+        ) {
           return;
         }
       }
-      
+
       try {
         const id = await db.addLog(data);
         const file = new File({
@@ -547,7 +564,8 @@ module.exports = (function() {
       // нужно обезопасить апдейт от дубликатов сообщений об ошибке файла
       // такие ошибки будут сыпаться с нескольких обработчиков если неудача
       // случилась на этапе 1
-      if (!fileToUpdate || fileToUpdate.status === 1 && file.status === 1) return;
+      if (!fileToUpdate || (fileToUpdate.status === 1 && file.status === 1))
+        return;
       const updateHelper = (target, source, nested = false) => {
         for (let prop in source) {
           if (prop in target || nested) {
@@ -624,7 +642,6 @@ module.exports = (function() {
         const numberOfParts = Math.floor(
           fileToUpdate.duration / fileToUpdate["stage_0"].keyFrameInterval
         );
-
         // устанавливаем значение последней части,
         // это надо чтобы откодировать "хвост"
         fileToUpdate["stage_1"].lastPart = numberOfParts - 1;

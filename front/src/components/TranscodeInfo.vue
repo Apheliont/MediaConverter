@@ -21,7 +21,6 @@
           :search="search"
           :custom-filter="customFilter"
           class="my-data-table"
-          transition="scale-transition"
         >
           <template slot="items" slot-scope="props">
             <td class="text-left">{{ props.item.id }}</td>
@@ -29,13 +28,14 @@
               <div class="my-name-field">{{ props.item.fileName }}{{ props.item.extension }}</div>
             </td>
             <td class="text-left">
-              <v-progress-circular
-                :rotate="270"
-                :size="43"
-                :width="5"
+              <v-progress-linear
+                class="my-progress-bar"
+                striped
+                background-opacity="0"
+                height="22"
                 :value="props.item.progress"
                 color="green accent-4"
-              >{{ props.item.progress || 0 }}</v-progress-circular>
+              >{{ props.item.progress || 0 }}</v-progress-linear>
             </td>
             <td class="text-left">{{ props.item.status | statusToText() }}</td>
             <td class="text-left">{{ props.item.stage | stageToText() }}</td>
@@ -127,8 +127,19 @@ export default {
   background-color: #fff;
 }
 
+.my-data-table td {
+  padding: 2px 15px 2px 5px !important;
+}
+
 .my-title {
   background-color: #ececec !important;
+}
+
+.my-progress-bar {
+  border-radius: 5px;
+  border: 1px solid rgba(0,0,0,0.13);
+  text-align: center;
+  color: rgb(56, 56, 56);
 }
 </style>
 

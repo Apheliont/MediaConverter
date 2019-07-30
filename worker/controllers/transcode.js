@@ -36,7 +36,7 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
         fileID: id
       }
     });
-    const sourceFile = path.join(
+    const inputFile = path.join(
       tempRootPath,
       "prepared",
       `${fileName}${extension}`
@@ -51,12 +51,12 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
       // ошибка не важна
     }
     const preset = settings.getPreset(category);
-    const outputFormat = preset.outputFormat();
+    const outputFormat = preset.O_FORMAT;
     const destPath = path.join(tempRootPath, "parts");
     const partsPromises = [];
 
     for (const part of partsToTranscode) {
-      const destFile = path.join(
+      const outputFile = path.join(
         destPath,
         `${fileName}${partSuffix}${part + 1}${outputFormat}`
       );
@@ -64,8 +64,8 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
       partsPromises.push(transcode({
         id,
         part,
-        sourceFile,
-        destFile,
+        inputFile,
+        outputFile,
         options,
         startTime: part * keyFrameInterval,
         duration: keyFrameInterval,

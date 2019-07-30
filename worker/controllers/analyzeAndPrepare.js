@@ -4,6 +4,7 @@ const settings = require("../settings");
 const io = require("../socket.io-server");
 const analyze = require("../processors/analyze");
 const prepare = require("../processors/prepare");
+const rescue = require("../processors/rescue");
 
 // конвертирует время вида 00:00:00 (string) в секунды (int)
 function stringTimeToNumber(str) {
@@ -21,7 +22,17 @@ function stringTimeToNumber(str) {
 }
 
 module.exports = async function({ file, worker_timerID, file_timerID }) {
-  let { id, fileName, extension, sourcePath, startTime, endTime, category } = file;
+  // деструктуризуем как мутируемые переменные, т.к часть из них возможно будет
+  // изменена
+  let {
+    id,
+    fileName,
+    extension,
+    sourcePath,
+    startTime,
+    endTime,
+    category
+  } = file;
 
   try {
     const preset = settings.getPreset(category);
@@ -56,12 +67,69 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
       }
     });
 
+    let { options, duration } = await analyze({
+      fileName,
+      extension,
+      sourcePath,
+      preset
+    });
 
-    let { options, duration } = await analyze({ fileName, extension, sourcePath, preset });
+    // создаем общую temp папку если она еще не создана
+    // нужны вложенные try catch блоки так как папки могут быть уже созданы
+    // и это ОК, не нужно чтобы из-за этого падала вся программа
+    try {
+      await fsPromise.mkdir(
+        path.join(settings.sourcePath, settings.tempFolderName)
+      );
+    } catch (e) {
+      // ошибка не важна, никак ее не обрабатываем
+    } finally {
+      var fileTempPath = await fsPromise.mkdtemp(
+        path.join(settings.sourcePath, settings.tempFolderName, `${id}-`)
+      );
+      await fsPromise.mkdir(path.join(fileTempPath, "prepared"));
+    }
 
-    // сразу выбрасываем ошибку если duration не определен
+    // без поля duration дальнейшие преобразования бессмысленны
     if (duration === "N/A") {
-      throw "Длительность файла не определена";
+      // дать второй шанс файлу, попробовать переложить
+      // содержимое в точно такой же контейнер
+      try {
+        const rescuePath = path.join(fileTempPath, "rescued");
+        await fsPromise.mkdir(rescuePath);
+        const { rescuedFileName, rescuedExtension } = await rescue({
+          id,
+          fileName,
+          extension,
+          sourcePath,
+          preset,
+          rescuePath
+        });
+        // заново пытаемся получить инфу о файле, если и сейчас не выйдет
+        // то выбрасываем ошибку
+        // изменяем изначальные данные о файле
+        fileName = rescuedFileName;
+        extension = rescuedExtension;
+        sourcePath = rescuePath;
+        const rescuedFileData = await analyze({
+          fileName,
+          extension,
+          sourcePath,
+          preset
+        });
+        // переопределяем данные объекта options и скаляра duration
+        // из внешнего скопа
+        duration = rescuedFileData.duration;
+        options = rescuedFileData.options;
+        // повторная проверка на поле duration
+        if (duration === "N/A") {
+          // выбрасываем любую ошибку, далее ее переопределим и отправим дальше
+          throw true;
+        }
+      } catch (e) {
+        // переопределяем и пробрасываем ошибку дальше на внешний перехватчик
+        throw "Длительность файла не определена";
+      }
     }
 
     // считаем время для частичной конвертации
@@ -89,7 +157,7 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
     }
     // ----------------------------------------------
 
-    const fullFileInfo = {
+    const inputFileInfo = {
       id,
       fileName,
       extension,
@@ -97,20 +165,6 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
       sourcePath,
       options
     };
-
-    // создаем общую temp папку если она еще не создана
-    // нужны вложенные try catch блоки так как папки могут быть уже созданы
-    // и это ОК, не нужно чтобы из-за этого падала вся программа
-    try {
-      await fsPromise.mkdir(path.join(settings.sourcePath, settings.tempFolderName));
-    } catch (e) {
-      // ошибка не важна, никак ее не обрабатываем
-    } finally {
-      var fileTempPath = await fsPromise.mkdtemp(
-        path.join(settings.sourcePath, settings.tempFolderName, `${id}-`)
-      );
-      await fsPromise.mkdir(path.join(fileTempPath, "prepared"));
-    }
 
     // отправляем серверу уточняющие данные о видео файле
     io.emit("workerResponse", {
@@ -125,8 +179,7 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
     // keyFrameInterval, extension, sourcePath(это новый путь), options
     const stage_0 = await prepare({
       preset,
-      fullFileInfo,
-      totalPhysicalCores: settings.totalPhysicalCores,
+      inputFileInfo,
       destinationPath: path.join(fileTempPath, "prepared")
     });
 

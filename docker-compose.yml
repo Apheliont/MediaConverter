@@ -18,18 +18,18 @@ services:
       - ./videoSource:/app/videoSource
       - ./temp:/app/temp
     command: nodemon app.js -L
-  # worker_1:
-  #   build:
-  #     context: ./worker
-  #     dockerfile: Dockerfile
-  #   container_name: worker_2
-  #   volumes:
-  #     - /app/node_modules
-  #     - ./worker:/app
-  #     - ./videoDest:/app/videoDest
-  #     - ./videoSource:/app/videoSource
-  #     - ./temp:/app/temp
-  #   command: nodemon app.js -L
+  worker_1:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    container_name: worker_2
+    volumes:
+      - /app/node_modules
+      - ./worker:/app
+      - ./videoDest:/app/videoDest
+      - ./videoSource:/app/videoSource
+      - ./temp:/app/temp
+    command: nodemon app.js -L
   server:
     build:
       context: ./server

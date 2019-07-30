@@ -23,11 +23,13 @@ export default {
       ".m2p",
       ".m2ts",
       ".wav",
+      ".ogg",
       ".mp3",
-      ".m2p",
       ".png",
       ".jpg",
-      ".jpeg"
+      ".jpeg",
+      ".bmp",
+      ".tif"
     ],
     files: [],
     uploadPercent: 0,
