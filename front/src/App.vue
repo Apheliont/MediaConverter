@@ -56,16 +56,16 @@ export default {
 <style scoped lang="scss">
 @import "./styles/variables.scss";
 .app-container {
-  background: url(#{$backend}/images/bg.jpg) #f7f7e0 !important;
+  background: url(#{$backend}/images/bg.jpg) !important;
   background-repeat: no-repeat;
   background-attachment: fixed;
   background-position: center;
-  background-size: contain;
+  background-size: cover;
 }
 .app-wrapper {
   margin: 0;
   padding: 0;
-  background-color: rgba(241, 245, 194, 0.7);
+  // background-color: rgba(241, 245, 194, 0.7);
 }
 </style>
 

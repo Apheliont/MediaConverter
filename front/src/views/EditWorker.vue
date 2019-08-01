@@ -58,7 +58,7 @@
                   :disabled="turnOnOffButton"
                   @click="turnOnOff"
                 >{{ connectionState }}</v-btn>
-                <v-btn color="info" @click="isEditing = true">Изменить</v-btn>
+                <v-btn color="#0886c0" @click="isEditing = true">Изменить</v-btn>
               </v-flex>
               <v-flex shrink align-self-end v-else>
                 <v-btn right color="error" @click="reset">Отменить</v-btn>

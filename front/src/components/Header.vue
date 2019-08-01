@@ -1,5 +1,5 @@
 <template>
-  <v-toolbar class="my-header">
+  <v-toolbar flat dense tile class="my-header">
     <v-toolbar-title class="title white--text">♽МедиаⱩонвертер</v-toolbar-title>
     <v-toolbar-items>
       <v-btn flat to="/" exact class="subheading">
@@ -20,12 +20,13 @@
 export default {};
 </script>
 
-<style scoped>
+
+<style scoped lang="scss">
 .v-btn--active {
-  color: #b3e099 !important;
+  color: #f7dda2 !important;
 }
 .my-header {
-  background-color: #028f76 !important;
+  background-color: rgba(0,0,0,.25) !important;
 }
 </style>
 

@@ -57,22 +57,36 @@
                 <v-container>
                   <v-layout column>
                     <v-flex>
-                      <v-text-field
-                        v-model="tempSettings.uploadPath"
-                        @input="hasChanged = true"
-                        :disabled="!isEditing"
-                        :rules="[notEmpty]"
-                        label="Путь для закачки файлов через WEB"
-                      ></v-text-field>
+                      <v-tooltip left color="white">
+                        <template v-slot:activator="{ on }">
+                          <span v-on="on">
+                            <v-text-field
+                              v-model="tempSettings.uploadPath"
+                              @input="hasChanged = true"
+                              :disabled="!isEditing"
+                              :rules="[notEmpty]"
+                              label="Путь для закачки файлов через WEB"
+                            ></v-text-field>
+                          </span>
+                        </template>
+                        <span>Путь по которому сервер будет размещать файлы закачанные через WEB интерфейс(хранилище должно быть доступно как серверу так и обработчикам)</span>
+                      </v-tooltip>
                     </v-flex>
                     <v-flex>
-                      <v-text-field
-                        v-model="tempSettings.tempFolderName"
-                        @input="hasChanged = true"
-                        :disabled="!isEditing"
-                        :rules="[notEmpty]"
-                        label="Название для временной папки"
-                      ></v-text-field>
+                      <v-tooltip left color="white">
+                        <template v-slot:activator="{ on }">
+                          <span v-on="on">
+                            <v-text-field
+                              v-model="tempSettings.tempFolderName"
+                              @input="hasChanged = true"
+                              :disabled="!isEditing"
+                              :rules="[notEmpty]"
+                              label="Название для временной папки"
+                            ></v-text-field>
+                          </span>
+                        </template>
+                        <span>Название директории которая будет создана внутри хранилища файлов закачанных через WEB интерфейс. В эту директорию будут помещаться все файлы во время обработки. Обычное название: temp, tmp, transcode_temp,.. и.т.д</span>
+                      </v-tooltip>
                     </v-flex>
                   </v-layout>
                 </v-container>
@@ -84,7 +98,7 @@
     </v-flex>
     <v-flex mt-5 align-self-end>
       <v-flex align-self-end v-if="!isEditing">
-        <v-btn color="info" @click="isEditing = true">Редактировать</v-btn>
+        <v-btn color="#0886c0" @click="isEditing = true">Редактировать</v-btn>
       </v-flex>
       <v-flex align-self-end v-else>
         <v-btn right color="error" @click="reset">Отменить</v-btn>

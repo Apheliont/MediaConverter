@@ -4,7 +4,7 @@
       <app-drawer></app-drawer>
     </v-flex>
     <v-flex grow mx-3>
-      <v-container fill-height elevation-2>
+      <v-container fluid fill-height elevation-2>
       <v-slide-x-transition mode="out-in">
         <router-view></router-view>
       </v-slide-x-transition>

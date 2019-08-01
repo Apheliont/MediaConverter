@@ -1,56 +1,54 @@
 <template>
-  <v-layout column nowrap>
+  <v-layout column nowrap fill-height>
     <v-flex>
-      <v-container grid-list-md text-xs-center class="my-container">
-        <div class="text-xs-center">
-          <v-dialog v-model="workerInfo" width="500">
-            <v-card>
-              <v-card-title class="headline grey lighten-2" primary-title>Статистика по обработчикам</v-card-title>
-              <v-card-text>
-                <table class="my-worker-info">
-                  <thead>
-                    <th>Этап</th>
-                    <th>ID Обработчика(ов)</th>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>Подготовка</td>
-                      <td>{{ activeLogWorkers["stage_0"] }}</td>
-                    </tr>
-                    <tr>
-                      <td>Кодирование</td>
-                      <td>{{ activeLogWorkers["stage_1"].join(",") }}</td>
-                    </tr>
-                    <tr>
-                      <td>Склейка</td>
-                      <td>{{ activeLogWorkers["stage_2"] }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </v-card-text>
-              <v-divider></v-divider>
-              <v-card-actions>
-                <v-spacer></v-spacer>
-                <v-btn color="primary" flat @click="workerInfo = false">Пойдет</v-btn>
-              </v-card-actions>
-            </v-card>
-          </v-dialog>
-          <v-dialog v-model="errorInfo" width="900">
-            <v-card>
-              <v-card-title class="headline grey lighten-2" primary-title>Описание ошибки</v-card-title>
-              <v-card-text>
-                <pre class="my-error-info" v-html="activeErrorMessage"></pre>
-              </v-card-text>
-              <v-divider></v-divider>
-              <v-card-actions>
-                <v-spacer></v-spacer>
-                <v-btn color="primary" flat @click="errorInfo = false">Понять и простить</v-btn>
-              </v-card-actions>
-            </v-card>
-          </v-dialog>
-        </div>
-        <v-layout column fill-height>
-          <v-flex>
+      <v-dialog v-model="workerInfo" width="500">
+        <v-card>
+          <v-card-title class="headline grey lighten-2" primary-title>Статистика по обработчикам</v-card-title>
+          <v-card-text>
+            <table class="my-worker-info">
+              <thead>
+                <th>Этап</th>
+                <th>ID Обработчика(ов)</th>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Подготовка</td>
+                  <td>{{ activeLogWorkers["stage_0"] }}</td>
+                </tr>
+                <tr>
+                  <td>Кодирование</td>
+                  <td>{{ activeLogWorkers["stage_1"].join(",") }}</td>
+                </tr>
+                <tr>
+                  <td>Склейка</td>
+                  <td>{{ activeLogWorkers["stage_2"] }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </v-card-text>
+          <v-divider></v-divider>
+          <v-card-actions>
+            <v-spacer></v-spacer>
+            <v-btn color="primary" flat @click="workerInfo = false">Пойдет</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+      <v-dialog v-model="errorInfo" width="900">
+        <v-card>
+          <v-card-title class="headline grey lighten-2" primary-title>Описание ошибки</v-card-title>
+          <v-card-text>
+            <pre class="my-error-info" v-html="activeErrorMessage"></pre>
+          </v-card-text>
+          <v-divider></v-divider>
+          <v-card-actions>
+            <v-spacer></v-spacer>
+            <v-btn color="primary" flat @click="errorInfo = false">Понять и простить</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+      <v-container fluid class="my-container">
+        <v-layout row>
+          <v-flex align-self-start>
             <v-card>
               <v-card-title class="title my-title">
                 Информация по завершенным операциям:
@@ -63,46 +61,64 @@
                   hide-details
                 ></v-text-field>
               </v-card-title>
-              <v-tabs v-model="active" grow color="#f4f4f4" slider-color="#b3e099" class="my-tabs">
+              <v-tabs
+                v-model="active"
+                fixed-tabs
+                grow
+                color="#f4f4f4"
+                slider-color="#4794ee"
+                class="my-tabs"
+              >
                 <v-tab @click="tabClicked(tab.key)" v-for="tab in tabs" :key="tab.name" ripple>
                   <v-icon left :color="tab.color">{{ tab.icon }}</v-icon>
                   {{ tab.name }}
                 </v-tab>
                 <v-tab-item v-for="tab in tabs" :key="tab.name">
-                  <v-card flat color="white">
-                    <v-card-text>
-                      <v-data-table
-                        ref="log-data-table"
-                        :headers="headers[tab.key]"
-                        :items="tab.data"
-                        class="elevation-1 my-data-table"
-                        v-bind:pagination.sync="pagination"
-                        hide-actions
-                      >
-                        <template slot="items" slot-scope="props">
-                          <td class="text-xs-left">{{ props.item.id }}</td>
-                          <td>
-                            <div
-                              class="my-name-field text-xs-left"
-                            >{{ props.item.fileName }}{{ props.item.extension }}</div>
-                          </td>
-                          <td class="text-xs-left">{{ props.item.size | humanReadableSize}}</td>
-                          <td class="text-xs-left">{{ props.item.duration | durationToHR }}</td>
-                          <td class="text-xs-left">{{ categoryToString(props.item.category) }}</td>
-                          <td class="text-xs-left">{{ props.item.created_at | dateToHR }}</td>
-                          <td class="text-xs-left">{{ props.item.processing_at | dateToHR }}</td>
-                          <td class="text-xs-left">{{ props.item.finished_at | dateToHR }}</td>
-                          <td v-if="tab.key === 'success'" class="text-xs-left">
-                            <v-icon
-                              @click="workerInfo = true; activeLogWorkers = JSON.parse(props.item.workers)"
-                            >description</v-icon>
-                          </td>
-                          <td v-if="tab.key === 'error'" class="text-xs-left">
-                            <v-icon @click="showError(props.item)">report_problem</v-icon>
-                          </td>
-                        </template>
-                      </v-data-table>
-                    </v-card-text>
+                  <v-card flat>
+                    <v-data-table
+                      ref="log-data-table"
+                      no-data-text
+                      :headers="headers[tab.key]"
+                      :items="tab.data"
+                      class="my-data-table"
+                      v-bind:pagination.sync="pagination"
+                      hide-actions
+                    >
+                      <template slot="items" slot-scope="props">
+                        <td class="text-xs-left">{{ props.item.id }}</td>
+                        <td>
+                          <div class="my-name-field text-xs-left">
+                            <v-tooltip right open-delay="600" max-width="500" color="white">
+                              <template v-slot:activator="{ on }">
+                                <span v-on="on">{{ props.item.fileName }}{{ props.item.extension }}</span>
+                              </template>
+                              <span>{{ props.item.fileName }}{{ props.item.extension }}</span>
+                            </v-tooltip>
+                          </div>
+                        </td>
+                        <td class="text-xs-left">{{ props.item.size | humanReadableSize}}</td>
+                        <td class="text-xs-left">{{ props.item.duration | durationToHR }}</td>
+                        <td class="text-xs-left">{{ categoryToString(props.item.category) }}</td>
+                        <td class="text-xs-left">{{ props.item.created_at | dateToHR }}</td>
+                        <td class="text-xs-left">{{ props.item.processing_at | dateToHR }}</td>
+                        <td class="text-xs-left">
+                          <v-tooltip top open-delay="600" max-width="500" color="white">
+                            <template v-slot:activator="{ on }">
+                              <span v-on="on">{{ props.item.finished_at | dateToHR }}</span>
+                            </template>
+                            <span>{{ calculteDuration(props.item.processing_at, props.item.finished_at) }}</span>
+                          </v-tooltip>
+                        </td>
+                        <td v-if="tab.key === 'success'" class="text-xs-left">
+                          <v-icon
+                            @click="workerInfo = true; activeLogWorkers = JSON.parse(props.item.workers)"
+                          >description</v-icon>
+                        </td>
+                        <td v-if="tab.key === 'error'" class="text-xs-left">
+                          <v-icon @click="showError(props.item)">report_problem</v-icon>
+                        </td>
+                      </template>
+                    </v-data-table>
                   </v-card>
                 </v-tab-item>
               </v-tabs>
@@ -111,7 +127,7 @@
         </v-layout>
       </v-container>
     </v-flex>
-    <v-flex class="text-xs-center pt-2" align-self-center>
+    <v-flex class="text-xs-center" align-self-center shrink>
       <div class="my-pagination">
         <v-pagination
           @input="updatePagination"
@@ -153,7 +169,7 @@ export default {
       pagination: {
         sortBy: "id",
         descending: true,
-        rowsPerPage: 10,
+        rowsPerPage: 10, // дефолтное значение, будет переопределно в хуке mounted
         status: 0
       },
       headers: {
@@ -256,6 +272,15 @@ export default {
       getError: "logs/getError",
       getLogs: "logs/getLogs"
     }),
+    calculteDuration(startTime, endTime) {
+      const totalSeconds = (new Date(endTime) - new Date(startTime)) / 1000;
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds - (3600 * hours + minutes * 60);
+      return `Время в работе: ${hours < 9 ? "0" + hours : hours}ч:${
+        minutes < 9 ? "0" + minutes : minutes
+      }м:${seconds < 9 ? "0" + seconds : seconds}с`;
+    },
     search(str) {
       this.searchString = str.trim();
       if (this.searchDebounce) {
@@ -310,11 +335,14 @@ export default {
       if (categoryObj) {
         return categoryObj.name;
       }
-      return "----"
+      return "----";
     },
     resize() {
+      const tab = document.querySelector(".v-window__container");
+
       const viewportHeight = window.innerHeight;
-      const dtHeight = viewportHeight - 420 < 100 ? 100 : viewportHeight - 420;
+      const dtHeight = viewportHeight - 380 < 100 ? 100 : viewportHeight - 380;
+      tab.style.height = `${dtHeight}px`;
       for (let dt of this.$refs["log-data-table"]) {
         dt.$el.style.height = `${dtHeight}px`;
       }
@@ -322,6 +350,15 @@ export default {
   },
   mounted() {
     this.resize();
+    // устанавливаем оптимальное кол-во строк таблицы в зависимости от высоты экрана
+    // вычисляем высоту рабочей области таблицы(без высоты заголовка 40px)
+    const dtViewPortHeight =
+      parseInt(this.$refs["log-data-table"][0].$el.style.height) - 40;
+    // высота одной строки таблицы 50px
+    const optimalRowNumber = Math.floor(dtViewPortHeight / 50);
+    if (isFinite(optimalRowNumber)) {
+      this.pagination.rowsPerPage = optimalRowNumber;
+    }
     window.addEventListener("resize", this.resize);
   },
   beforeDestroy() {
@@ -332,7 +369,7 @@ export default {
 
 <style scoped>
 .my-data-table {
-  overflow-y: scroll;
+  overflow-y: auto;
 }
 .my-title {
   background-color: #ececec !important;

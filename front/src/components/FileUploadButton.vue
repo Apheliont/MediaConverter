@@ -7,13 +7,14 @@
         @dragenter.prevent.stop="onDragEnter"
         @dragleave.prevent.stop="onDragLeave"
         @click="onClick"
+        fab
         ripple
         flat
         tag="div"
         class="mx-auto my-file-uploader"
         slot-scope="{ hover }"
         :class="`elevation-${hover ? 12 : 4}`"
-      >Пожалуйста положите файлы сюда</v-btn>
+      ><v-icon size="48">attach_file</v-icon></v-btn>
     </v-hover>
 
     <app-file-upload-dialog v-if="dialog" :rawFiles="files" @closeDialog="dialog = false"></app-file-upload-dialog>
@@ -70,9 +71,9 @@ export default {
 <style scoped>
 .my-file-uploader {
   height: 150px;
-  border-radius: 10px;
-  background-color: #d14334;
+  width: 150px;
+  border-radius: 50%;
+  background-color: #ce4b6d;
   font-size: 24px;
 }
 </style>
-

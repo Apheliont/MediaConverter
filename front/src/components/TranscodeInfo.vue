@@ -1,5 +1,6 @@
 <template>
-  <v-layout class="container" row fill-height>
+<v-container fluid class="my-container">
+  <v-layout row>
     <v-flex align-self-start grow>
       <v-card flat>
         <v-card-title class="title my-title">
@@ -15,6 +16,7 @@
         </v-card-title>
         <v-data-table
           ref="transcode-data-table"
+          no-data-text
           hide-actions
           :headers="headers"
           :items="files"
@@ -27,14 +29,14 @@
             <td class="text-left">
               <div class="my-name-field">{{ props.item.fileName }}{{ props.item.extension }}</div>
             </td>
-            <td class="text-left">
+            <td class="text-left my-data-table__row_progress-bar">
               <v-progress-linear
                 class="my-progress-bar"
                 striped
                 background-opacity="0"
                 height="22"
                 :value="props.item.progress"
-                color="green accent-4"
+                color="blue lighten-2"
               >{{ props.item.progress || 0 }}</v-progress-linear>
             </td>
             <td class="text-left">{{ props.item.status | statusToText() }}</td>
@@ -51,6 +53,7 @@
       </v-card>
     </v-flex>
   </v-layout>
+</v-container>
 </template>
 
 <script>
@@ -64,7 +67,7 @@ export default {
         { text: "ID", value: "id", align: "left", width: 50 },
         { text: "Имя файла", value: "fileName", align: "left", width: 350 },
         { text: "Прогресс", value: "progress", align: "left", width: 80 },
-        { text: "Состояние", value: "status", align: "left", width: 100 },
+        { text: "Состояние", value: "status", align: "left", width: 120 },
         { text: "Этап", value: "stage", align: "left", width: 120 },
         { text: "Категория", value: "category", align: "left", width: 150 },
         { text: "Обработчики", value: "workers", align: "left", width: 70 },
@@ -97,7 +100,7 @@ export default {
     },
     resize() {
       const viewportHeight = window.innerHeight;
-      const dtHeight = viewportHeight - 520 < 100 ? 100 : viewportHeight - 520;
+      const dtHeight = viewportHeight - 350 < 100 ? 100 : viewportHeight - 350;
       this.$refs["transcode-data-table"].$el.style.height = `${dtHeight}px`;
     }
   },
@@ -112,22 +115,22 @@ export default {
 </script>
 
 <style scoped>
+
 .my-name-field {
   max-width: 350px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.v-progress-circular {
-  margin: -0.3rem;
-}
+
 .my-data-table {
-  margin-top: -4px;
+  margin-top: -5px;
   overflow-y: auto;
   background-color: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.13);
 }
 
-.my-data-table td {
+.my-data-table__row_progress-bar {
   padding: 2px 15px 2px 5px !important;
 }
 
@@ -137,7 +140,7 @@ export default {
 
 .my-progress-bar {
   border-radius: 5px;
-  border: 1px solid rgba(0,0,0,0.13);
+  border: 1px solid rgba(0, 0, 0, 0.13);
   text-align: center;
   color: rgb(56, 56, 56);
 }

@@ -1,7 +1,17 @@
 .container {
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.3);
   border-radius: 10px;
+  padding: 10px;
 }
 .wrapper {
   background-color: white;
+}
+
+.my-container {
+  width: 95%;
+}
+
+.my-tooltip {
+  background-color: rgba(255,255,255, 0.9);
+  color: red;
 }

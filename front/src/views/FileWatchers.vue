@@ -5,7 +5,7 @@
         Наблюдатели:
         <v-spacer></v-spacer>
         <v-dialog v-model="dialog" max-width="500px" persistent>
-          <v-btn slot="activator" color="primary" dark class="mb-2">Добавить наблюдателя</v-btn>
+          <v-btn slot="activator" color="#ce4b6d" dark class="mb-2">Добавить наблюдателя</v-btn>
           <v-card>
             <v-card-title>
               <span class="headline">{{ formTitle }}</span>
@@ -15,21 +15,35 @@
                 <v-container grid-list-md>
                   <v-layout column>
                     <v-flex xs12 sm6 md4>
-                      <v-text-field
-                        v-model="editedWatcher.host"
-                        @input="hasChanged = true"
-                        :rules="hostRule"
-                        label="Адрес хоста"
-                        clearable
-                      ></v-text-field>
+                      <v-tooltip right color="white">
+                        <template v-slot:activator="{ on }">
+                          <span v-on="on">
+                            <v-text-field
+                              v-model="editedWatcher.host"
+                              @input="hasChanged = true"
+                              :rules="hostRule"
+                              label="Адрес хоста"
+                              clearable
+                            ></v-text-field>
+                          </span>
+                        </template>
+                        <span>FQDN или IP адрес</span>
+                      </v-tooltip>
                     </v-flex>
                     <v-flex xs12 sm6 md4>
-                      <v-text-field
-                        v-model="editedWatcher.port"
-                        @input="hasChanged = true"
-                        :rules="portRule"
-                        label="Порт хоста"
-                      ></v-text-field>
+                      <v-tooltip right color="white">
+                        <template v-slot:activator="{ on }">
+                          <span v-on="on">
+                            <v-text-field
+                              v-model="editedWatcher.port"
+                              @input="hasChanged = true"
+                              :rules="portRule"
+                              label="Порт хоста"
+                            ></v-text-field>
+                          </span>
+                        </template>
+                        <span>По умолчанию 3002. Можно настроить в файле .env модуля наблюдателя</span>
+                      </v-tooltip>
                     </v-flex>
                   </v-layout>
                 </v-container>
@@ -45,10 +59,12 @@
       </v-card-title>
       <v-card-text>
         <v-data-table
+          ref="fwatchers-data-table"
+          no-data-text
           :headers="headers"
           :items="watchers"
           hide-actions
-          class="elevation-2 my-data-table"
+          class="my-data-table"
           item-key="props.item.id"
           disable-initial-sort
         >
@@ -61,7 +77,11 @@
             <td class="text-xs-left">{{ props.item.port }}</td>
             <td class="text-xs-left">
               <v-icon class="mr-2" @click="edit(props.item)">edit</v-icon>
-              <v-icon v-if="props.item.status === 0" class="mr-2" @click="switchWatcher(props.item.id)">play_arrow</v-icon>
+              <v-icon
+                v-if="props.item.status === 0"
+                class="mr-2"
+                @click="switchWatcher(props.item.id)"
+              >play_arrow</v-icon>
               <v-icon v-else class="mr-2" @click="switchWatcher(props.item.id)">pause</v-icon>
               <v-icon @click="remove(props.item)">delete</v-icon>
             </td>
@@ -99,7 +119,13 @@ export default {
           value: "port",
           width: 150
         },
-        { text: "Действия", value: "path", align: "left", sortable: false, width: 150 }
+        {
+          text: "Действия",
+          value: "path",
+          align: "left",
+          sortable: false,
+          width: 150
+        }
       ],
       editedIndex: -1,
       editedWatcher: {
@@ -114,7 +140,7 @@ export default {
       },
       hostRule: [v => (v && v.length > 0) || "Поле не может быть пустым"],
       portRule: [
-        v => (!!v) || "Поле не может быть пустым",
+        v => !!v || "Поле не может быть пустым",
         v =>
           (Number.isInteger(+v) && Number.isFinite(+v) && +v > 0) ||
           "Поле должно содержать только цифры",
@@ -175,8 +201,18 @@ export default {
         this.addWatcher(this.editedWatcher);
       }
       this.close();
+    },
+    resize() {
+      const viewportHeight = window.innerHeight;
+      const dtHeight = viewportHeight - 280 < 100 ? 100 : viewportHeight - 280;
+      this.$refs["fwatchers-data-table"].$el.style.height = `${dtHeight}px`;
     }
   },
+  mounted() {
+    this.resize();
+    window.addEventListener("resize", this.resize);
+  },
+
   created() {
     this.$socket.emit("join", "WATCHERINFO", err => {
       if (err) {
@@ -185,6 +221,7 @@ export default {
     });
   },
   beforeDestroy() {
+    window.removeEventListener("resize", this.resize);
     this.$socket.emit("leave", "WATCHERINFO", err => {
       if (err) {
         console.log("ERROR leaving ", err);
@@ -197,10 +234,7 @@ export default {
 <style scoped>
 .my-data-table {
   margin-top: -4px;
-  max-height: 500px;
-  min-height: 500px;
   overflow-y: scroll;
-  padding-bottom: 20px;
 }
 
 .my-title {

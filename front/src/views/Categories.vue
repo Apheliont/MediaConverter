@@ -5,7 +5,7 @@
         Редактор категорий:
         <v-spacer></v-spacer>
         <v-dialog v-model="dialog" max-width="500px" persistent>
-          <v-btn slot="activator" color="primary" dark class="mb-2">Добавить категорию</v-btn>
+          <v-btn slot="activator" color="#ce4b6d" dark class="mb-2">Добавить категорию</v-btn>
           <v-card>
             <v-card-title>
               <span class="headline">{{ formTitle }}</span>
@@ -15,44 +15,71 @@
                 <v-container grid-list-md>
                   <v-layout column>
                     <v-flex xs12 sm6 md4>
-                      <v-text-field
-                        v-model="editedItem.name"
-                        @input="hasChanged = true"
-                        :rules="commonRules"
-                        label="Название"
-                        clearable
-                      ></v-text-field>
+                      <v-tooltip right color="white">
+                        <template v-slot:activator="{ on }">
+                          <span v-on="on">
+                            <v-text-field
+                              v-model="editedItem.name"
+                              @input="hasChanged = true"
+                              :rules="commonRules"
+                              label="Название"
+                              clearable
+                            ></v-text-field>
+                          </span>
+                        </template>
+                        <span>Служит в качестве лейбла при сопостовление с выходным путем</span>
+                      </v-tooltip>
                     </v-flex>
                     <v-flex xs12 sm6 md4>
-                      <v-text-field
-                        v-model="editedItem.path"
-                        @input="hasChanged = true"
-                        :rules="commonRules"
-                        label="Путь для сохранения"
-                        clearable
-                      ></v-text-field>
+                      <v-tooltip right color="white">
+                        <template v-slot:activator="{ on }">
+                          <span v-on="on">
+                            <v-text-field
+                              v-model="editedItem.path"
+                              @input="hasChanged = true"
+                              :rules="commonRules"
+                              label="Путь для сохранения конечного результата"
+                              clearable
+                            ></v-text-field>
+                          </span>
+                        </template>
+                        <span>То, куда будет помещен итоговый результат кодирования. ВАЖНО! Путь должен быть доступен со стороны обработчиков! Сервер по данному пути обращаться не будет</span>
+                      </v-tooltip>
                     </v-flex>
                     <v-flex>
                       <v-layout row nowrap>
                         <v-flex grow>
-                          <v-text-field
-                            v-model="editedItem.preset"
-                            @input="hasChanged = true"
-                            :rules="commonRules"
-                            label="Пресет"
-                            hint="Находятся в дирректории presets модуля обработчика"
-                            clearable
-                          ></v-text-field>
+                          <v-tooltip left color="white">
+                            <template v-slot:activator="{ on }">
+                              <span v-on="on">
+                                <v-text-field
+                                  v-model="editedItem.preset"
+                                  @input="hasChanged = true"
+                                  :rules="commonRules"
+                                  label="Пресет"
+                                  clearable
+                                ></v-text-field>
+                              </span>
+                            </template>
+                            <span>Пресеты находятся в директории presets модуля обработчика. Расширение файла указывать необязательно</span>
+                          </v-tooltip>
                         </v-flex>
                         <v-flex shrink class="my-priority">
-                          <v-select
-                            v-model="editedItem.priority"
-                            @input="hasChanged = true"
-                            :items="Array.from({length: 10}, (i, v) => v + 1)"
-                            dense
-                            type="number"
-                            label="Приоритет"
-                          ></v-select>
+                          <v-tooltip right color="white">
+                            <template v-slot:activator="{ on }">
+                              <span v-on="on">
+                                <v-select
+                                  v-model="editedItem.priority"
+                                  @input="hasChanged = true"
+                                  :items="Array.from({length: 10}, (i, v) => v + 1)"
+                                  dense
+                                  type="number"
+                                  label="Приоритет"
+                                ></v-select>
+                              </span>
+                            </template>
+                            <span>Чем меньше значение, тем выше приоритет заданий для этой категории</span>
+                          </v-tooltip>
                         </v-flex>
                       </v-layout>
                     </v-flex>
@@ -70,10 +97,12 @@
       </v-card-title>
       <v-card-text>
         <v-data-table
+          ref="categories-data-table"
+          no-data-text
           :headers="headers"
           :items="categories"
           hide-actions
-          class="elevation-2 my-data-table"
+          class="my-data-table"
           item-key="props.item.id"
           disable-initial-sort
         >
@@ -127,7 +156,13 @@ export default {
         value: "priority",
         width: 150
       },
-      { text: "Действия", value: "name", align: "left", sortable: false, width: 150 }
+      {
+        text: "Действия",
+        value: "name",
+        align: "left",
+        sortable: false,
+        width: 150
+      }
     ],
     editedIndex: -1,
     editedItem: {
@@ -194,7 +229,19 @@ export default {
         this.addCategory(this.editedItem);
       }
       this.close();
+    },
+    resize() {
+      const viewportHeight = window.innerHeight;
+      const dtHeight = viewportHeight - 280 < 100 ? 100 : viewportHeight - 280;
+      this.$refs["categories-data-table"].$el.style.height = `${dtHeight}px`;
     }
+  },
+  mounted() {
+    this.resize();
+    window.addEventListener("resize", this.resize);
+  },
+  beforeDestroy() {
+    window.removeEventListener("resize", this.resize);
   }
 };
 </script>
@@ -202,10 +249,7 @@ export default {
 <style scoped>
 .my-data-table {
   margin-top: -4px;
-  max-height: 500px;
-  min-height: 500px;
   overflow-y: scroll;
-  padding-bottom: 20px;
 }
 
 .my-title {
@@ -216,6 +260,7 @@ export default {
 .my-priority {
   width: 30%;
 }
+
 </style>
 
 

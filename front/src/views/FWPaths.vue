@@ -5,7 +5,7 @@
         Отслеживание путей:
         <v-spacer></v-spacer>
         <v-dialog v-model="dialog" max-width="500px" persistent>
-          <v-btn slot="activator" color="primary" dark class="mb-2">Добавить путь</v-btn>
+          <v-btn slot="activator" color="#ce4b6d" dark class="mb-2">Добавить путь</v-btn>
           <v-card>
             <v-card-title>
               <span class="headline">{{ formTitle }}</span>
@@ -15,33 +15,52 @@
                 <v-container grid-list-md>
                   <v-layout column>
                     <v-flex xs12 sm6 md4>
-                      <v-text-field
-                        v-model="editedItem.path"
-                        @input="hasChanged = true"
-                        :rules="commonRules"
-                        label="Путь отслеживания"
-                        clearable
-                      ></v-text-field>
+                      <v-tooltip right color="white">
+                        <template v-slot:activator="{ on }">
+                          <span v-on="on">
+                            <v-text-field
+                              v-model="editedItem.path"
+                              @input="hasChanged = true"
+                              :rules="commonRules"
+                              label="Путь отслеживания"
+                              clearable
+                            ></v-text-field>
+                          </span>
+                        </template>
+                        <span>Укажите путь который будет контролироваться наблюдателем на наличие новых файлов. ВАЖНО! Этот путь должен быть доступен со стороны обработчиков, в противном случае файл обработан не будет!</span>
+                      </v-tooltip>
                     </v-flex>
                     <v-flex xs12 sm6 md4>
                       <v-layout row nowrap>
                         <v-flex>
-                          <v-text-field
-                            v-model.number="editedItem.delay"
-                            @input="hasChanged = true"
-                            :rules="digitalRule"
-                            label="Минимальная задержка(сек)"
-                            hint="До активации наблюдателя"
-                          ></v-text-field>
+                          <v-tooltip left color="white">
+                            <template v-slot:activator="{ on }">
+                              <span v-on="on">
+                                <v-text-field
+                                  v-model.number="editedItem.delay"
+                                  @input="hasChanged = true"
+                                  :rules="digitalRule"
+                                  label="Минимальная задержка(сек)"
+                                ></v-text-field>
+                              </span>
+                            </template>
+                            <span>Это безусловная задержка между началом закачки файла и реакцией обработчика. Общее время реакции обработчика = задержка + размер файла/скорость участка сети</span>
+                          </v-tooltip>
                         </v-flex>
                         <v-flex>
-                          <v-text-field
-                            v-model.number="editedItem.netSpeed"
-                            @input="hasChanged = true"
-                            :rules="digitalRule"
-                            label="Скорость сети(МБ/с)"
-                            hint="Между клиентами и этим путём"
-                          ></v-text-field>
+                          <v-tooltip right color="white">
+                            <template v-slot:activator="{ on }">
+                              <span v-on="on">
+                                <v-text-field
+                                  v-model.number="editedItem.netSpeed"
+                                  @input="hasChanged = true"
+                                  :rules="digitalRule"
+                                  label="Скорость сети(МБ/с)"
+                                ></v-text-field>
+                              </span>
+                            </template>
+                            <span>Значение скорости сети нужно для расчета времени окончания закачки файла. Укажите скорость в мегабайт/сек на участке между клиентами и файловым хранилищем куда закачивается файл</span>
+                          </v-tooltip>
                         </v-flex>
                       </v-layout>
                     </v-flex>
@@ -70,10 +89,12 @@
       </v-card-title>
       <v-card-text>
         <v-data-table
+          ref="fwpaths-data-table"
+          no-data-text
           :headers="headers"
           :items="fwpaths"
           hide-actions
-          class="elevation-2 my-data-table"
+          class="my-data-table"
           item-key="props.item.id"
           disable-initial-sort
         >
@@ -125,7 +146,13 @@ export default {
           value: "netSpeed",
           width: 150
         },
-        { text: "Действия", value: "path", align: "left", sortable: false, width: 150 }
+        {
+          text: "Действия",
+          value: "path",
+          align: "left",
+          sortable: false,
+          width: 150
+        }
       ],
       editedIndex: -1,
       editedItem: {
@@ -169,7 +196,11 @@ export default {
   methods: {
     ...mapActions("fwpaths", ["addFWPath", "updateFWPath", "deleteFWPath"]),
     categoryToString(id) {
-      return this.categories.find(category => category.id === Number(id)).name;
+      const categoryObj = this.categories.find(category => category.id === id);
+      if (categoryObj) {
+        return categoryObj.name;
+      }
+      return "----";
     },
     editItem(item) {
       this.editedIndex = this.fwpaths.indexOf(item);
@@ -199,7 +230,20 @@ export default {
         this.addFWPath(this.editedItem);
       }
       this.close();
+    },
+
+    resize() {
+      const viewportHeight = window.innerHeight;
+      const dtHeight = viewportHeight - 280 < 100 ? 100 : viewportHeight - 280;
+      this.$refs["fwpaths-data-table"].$el.style.height = `${dtHeight}px`;
     }
+  },
+  mounted() {
+    this.resize();
+    window.addEventListener("resize", this.resize);
+  },
+  beforeDestroy() {
+    window.removeEventListener("resize", this.resize);
   }
 };
 </script>
@@ -207,10 +251,7 @@ export default {
 <style scoped>
 .my-data-table {
   margin-top: -4px;
-  max-height: 500px;
-  min-height: 500px;
   overflow-y: scroll;
-  padding-bottom: 20px;
 }
 
 .my-title {
