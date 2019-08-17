@@ -15,10 +15,12 @@
                 <v-container grid-list-md>
                   <v-layout column>
                     <v-flex xs12 sm6 md4>
-                      <v-tooltip right color="white">
+                      <v-tooltip right v-model="tooltipName" color="white">
                         <template v-slot:activator="{ on }">
-                          <span v-on="on">
+                          <span>
                             <v-text-field
+                              append-outer-icon="help_outline"
+                              @click:append-outer="tooltipName = !tooltipName"
                               v-model="editedItem.name"
                               @input="hasChanged = true"
                               :rules="commonRules"
@@ -31,10 +33,12 @@
                       </v-tooltip>
                     </v-flex>
                     <v-flex xs12 sm6 md4>
-                      <v-tooltip right color="white">
+                      <v-tooltip right v-model="tooltipPath" color="white">
                         <template v-slot:activator="{ on }">
-                          <span v-on="on">
+                          <span>
                             <v-text-field
+                              append-outer-icon="help_outline"
+                              @click:append-outer="tooltipPath = !tooltipPath"
                               v-model="editedItem.path"
                               @input="hasChanged = true"
                               :rules="commonRules"
@@ -49,10 +53,12 @@
                     <v-flex>
                       <v-layout row nowrap>
                         <v-flex grow>
-                          <v-tooltip left color="white">
+                          <v-tooltip left v-model="tooltipPreset" color="white">
                             <template v-slot:activator="{ on }">
-                              <span v-on="on">
+                              <span>
                                 <v-text-field
+                                  append-outer-icon="help_outline"
+                                  @click:append-outer="tooltipPreset = !tooltipPreset"
                                   v-model="editedItem.preset"
                                   @input="hasChanged = true"
                                   :rules="commonRules"
@@ -128,6 +134,9 @@ import { mapActions } from "vuex";
 import { mapGetters } from "vuex";
 export default {
   data: () => ({
+    tooltipName: false,
+    tooltipPath: false,
+    tooltipPreset: false,
     dialog: false,
     hasChanged: false,
     valid: false,
@@ -260,7 +269,6 @@ export default {
 .my-priority {
   width: 30%;
 }
-
 </style>
 
 

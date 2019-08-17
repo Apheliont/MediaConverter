@@ -13,7 +13,9 @@ async function getFWPaths(req, res) {
 async function addFWPath(req, res) {
   try {
     const id = await fwpathModel.addFWPath(req.body);
-    res.status(200).json({ id });
+    res.status(200).json({
+      id
+    });
   } catch (e) {
     res.status(500).send(e.message);
   }

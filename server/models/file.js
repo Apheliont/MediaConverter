@@ -1,14 +1,13 @@
 const db = require("../database/main");
-let { informClients } = require("../socket.io-server");
-informClients = informClients("FILEINFO");
 const categoryModel = require("./category");
+const EventEmitter = require("events");
 
 module.exports = (function() {
   const lockTime = 7000; // время на которое лочится файл
   const outerMethods = {};
   const partSuffix = "_part_";
 
-  class File {
+  class File extends EventEmitter {
     constructor({
       id,
       fileName,
@@ -19,6 +18,7 @@ module.exports = (function() {
       endTime,
       sourcePath = "" // если поле пустое то воркер возмет дефолтный путь для uploadFiles
     }) {
+      super();
       this.id = Number(id);
       this.fileName = fileName;
       this.extension = extension;
@@ -137,7 +137,7 @@ module.exports = (function() {
         this.status = 2;
         // устанавливаем таймер
         this.lockFileTimerId[workerID][timerID] = setTimeout(
-          function () {
+          function() {
             // вдруг файл уже удалили?
             if (this) {
               // возвращаем как было
@@ -145,7 +145,7 @@ module.exports = (function() {
               this.status = 3;
               // удаляем ключ и значение за собой
               clearTimerID();
-              informClients("UPDATEFILE", this.filterFileData());
+              this.emit("updateFile", this.filterFileData());
             }
           }.bind(this),
           lockTime
@@ -203,7 +203,7 @@ module.exports = (function() {
               // удаляем ключ и значение за собой
               clearTimerID();
               // оповещаем фронтэнд
-              informClients("UPDATEFILE", this.filterFileData());
+              this.emit("updateFile", this.filterFileData());
             }
           }.bind(this),
           lockTime
@@ -211,7 +211,7 @@ module.exports = (function() {
       }
 
       // оповещаем фронтэнд
-      informClients("UPDATEFILE", this.filterFileData());
+      this.emit("updateFile", this.filterFileData());
       return timerID;
     }
     // возвращает процент завершения кодирования файла,
@@ -288,8 +288,9 @@ module.exports = (function() {
     }
   }
 
-  return new (class {
+  return new class extends EventEmitter {
     constructor() {
+      super();
       this.storage = [];
     }
     addMethod(name, method) {
@@ -340,7 +341,7 @@ module.exports = (function() {
                 Object.keys(file["stage_1"].currentTranscode[2]).length === 0
               ) {
                 file.status = 3;
-                informClients("UPDATEFILE", {
+                this.emit("updateFile", {
                   id,
                   status: 3
                 });
@@ -351,7 +352,7 @@ module.exports = (function() {
           case 2:
             file[`stage_${file.stage}`].workerID = undefined;
             file.status = 3;
-            informClients("UPDATEFILE", {
+            this.emit("updateFile", {
               id,
               status: 3
             });
@@ -359,6 +360,19 @@ module.exports = (function() {
               id,
               progress: 0
             });
+        }
+      }
+    }
+    // объект fileProgress: key - fileID,
+    // value - Object: key - part<int>, value - progress<int>
+    updateFileProgress(fileProgress) {
+      for (const id of Object.keys(fileProgress)) {
+        for (const part of Object.keys(fileProgress[id])) {
+          this.updateFileProgressById({
+            id: parseInt(id),
+            progress: parseInt(fileProgress[id][part]),
+            part: parseInt(part)
+          });
         }
       }
     }
@@ -375,10 +389,7 @@ module.exports = (function() {
       // вариант дебаунса, чтобы лишний раз не гонять данные по сети
       if (totalPercent !== fileToUpdate.totalPercent) {
         fileToUpdate.totalPercent = totalPercent;
-        informClients("UPDATEFILE", {
-          id,
-          progress: totalPercent
-        });
+        this.emit("updateProgress");
       }
     }
 
@@ -493,7 +504,7 @@ module.exports = (function() {
           .then(() => {
             // удалить из памяти
             this.storage.splice(indexOfFile, 1);
-            informClients("DELETEFILE", id);
+            this.emit("deleteFile", id);
           })
           .catch(e => {
             console.log("Ошибка в deleteFileById ", e);
@@ -508,7 +519,8 @@ module.exports = (function() {
     }
 
     async addFile(data) {
-      // исключаем возможность обработки дубликата файла(по имени файл и расширению)
+      // исключаем возможность обработки дубликата файла
+      // (по имени файл и расширению)
       for (const file of this.storage) {
         if (
           data.fileName === file.fileName &&
@@ -524,9 +536,14 @@ module.exports = (function() {
           ...data,
           id
         });
+        // вешаем обработчик на события от экземпляра файла
+        file.on("updateFile", data => {
+          // сразу пробрасываем событие выше
+          this.emit("updateFile", data);
+        });
         this.storage.push(file);
         // сразу оповещаем фронтенд новым файлом
-        informClients("ADDFILE", file.filterFileData());
+        this.emit("addFile", file.filterFileData());
       } catch (e) {
         console.log("Ошибка в функции addFile", e.message);
       }
@@ -675,7 +692,7 @@ module.exports = (function() {
           }
         }
       }
-      informClients("UPDATEFILE", fileToUpdate.filterFileData());
+      this.emit("updateFile", fileToUpdate.filterFileData());
     }
-  })();
+  };
 })();

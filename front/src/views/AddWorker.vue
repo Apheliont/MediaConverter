@@ -5,10 +5,12 @@
         <v-card-title>Добавление обработчика:</v-card-title>
         <v-card-text>
           <v-form ref="form" v-model="valid">
-            <v-tooltip right color="white">
+            <v-tooltip right v-model="tooltipName" color="white">
               <template v-slot:activator="{ on }">
-                <span v-on="on">
+                <span>
                   <v-text-field
+                    append-outer-icon="help_outline"
+                    @click:append-outer="tooltipName = !tooltipName"
                     v-model="worker.name"
                     @input="dataChanged"
                     :rules="nameRules"
@@ -19,10 +21,12 @@
               </template>
               <span>Служит для отображения в боковой панели</span>
             </v-tooltip>
-            <v-tooltip right color="white">
+            <v-tooltip right v-model="tooltipHost" color="white">
               <template v-slot:activator="{ on }">
-                <span v-on="on">
+                <span>
                   <v-text-field
+                    append-outer-icon="help_outline"
+                    @click:append-outer="tooltipHost = !tooltipHost"
                     v-model="worker.host"
                     @input="dataChanged"
                     :rules="hostRules"
@@ -33,10 +37,12 @@
               </template>
               <span>FQDN или IP адрес</span>
             </v-tooltip>
-            <v-tooltip right color="white">
+            <v-tooltip right v-model="tooltipPort" color="white">
               <template v-slot:activator="{ on }">
-                <span v-on="on">
+                <span>
                   <v-text-field
+                    append-outer-icon="help_outline"
+                    @click:append-outer="tooltipPort = !tooltipPort"
                     v-model.number="worker.port"
                     @input="dataChanged"
                     :rules="portRules"
@@ -47,10 +53,12 @@
               </template>
               <span>По умолчанию 3000. Можно настроить в файле .env модуля обработчика</span>
             </v-tooltip>
-            <v-tooltip right color="white">
+            <v-tooltip right v-model="tooltipPath" color="white">
               <template v-slot:activator="{ on }">
-                <span v-on="on">
+                <span>
                   <v-text-field
+                    append-outer-icon="help_outline"
+                    @click:append-outer="tooltipPath = !tooltipPath"
                     v-model="worker.sourcePath"
                     @input="dataChanged"
                     label="Путь до файлов закачанных через Web"
@@ -97,6 +105,10 @@
 import { mapActions } from "vuex";
 export default {
   data: () => ({
+    tooltipName: false,
+    tooltipHost: false,
+    tooltipPort: false,
+    tooltipPath: false,
     hasChanged: false,
     worker: {
       name: "",

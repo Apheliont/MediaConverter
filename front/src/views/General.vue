@@ -57,10 +57,12 @@
                 <v-container>
                   <v-layout column>
                     <v-flex>
-                      <v-tooltip left color="white">
+                      <v-tooltip left v-model="tooltipUploadPath" color="white">
                         <template v-slot:activator="{ on }">
-                          <span v-on="on">
+                          <span>
                             <v-text-field
+                              append-outer-icon="help_outline"
+                              @click:append-outer="tooltipUploadPath = !tooltipUploadPath"
                               v-model="tempSettings.uploadPath"
                               @input="hasChanged = true"
                               :disabled="!isEditing"
@@ -73,10 +75,12 @@
                       </v-tooltip>
                     </v-flex>
                     <v-flex>
-                      <v-tooltip left color="white">
+                      <v-tooltip left v-model="tooltipFolderName" color="white">
                         <template v-slot:activator="{ on }">
-                          <span v-on="on">
+                          <span>
                             <v-text-field
+                              append-outer-icon="help_outline"
+                              @click:append-outer="tooltipFolderName = !tooltipFolderName"
                               v-model="tempSettings.tempFolderName"
                               @input="hasChanged = true"
                               :disabled="!isEditing"
@@ -117,6 +121,8 @@
 import { mapGetters, mapActions } from "vuex";
 export default {
   data: () => ({
+    tooltipFolderName: false,
+    tooltipUploadPath: false,
     snackbar: false,
     isEditing: false,
     valid: false,
@@ -185,6 +191,8 @@ export default {
       this.tempSettings = Object.assign({}, this.forReset, sheerCopy);
       this.hasChanged = false;
       this.isEditing = false;
+      this.tooltipFolderName = false;
+      this.tooltipUploadPath = false;
     }
   },
   created() {

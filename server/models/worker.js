@@ -1,17 +1,15 @@
 const io = require("socket.io-client");
 const db = require("../database/main");
 const EventEmitter = require("events");
-let { informClients } = require("../socket.io-server");
-const informAboutWorker = informClients("WORKERINFO");
 const settings = require("./settings");
 const category = require("./category");
 
-module.exports = (function() {
+module.exports = (function () {
   const lockTime = 7000; // время на которое лочится воркер
   const outerMethods = {};
 
   // используется для хранения и оповещения об изменении данных общих для всех воркеров
-  const commonData = new (class extends EventEmitter {
+  const commonData = new(class extends EventEmitter {
     constructor() {
       super();
       this.coresPerWorker = {}; // key - worker_id, value - кол-во ядер
@@ -36,7 +34,10 @@ module.exports = (function() {
       return this.tempFolderName;
     }
 
-    addWorkerCores({ id, cores }) {
+    addWorkerCores({
+      id,
+      cores
+    }) {
       id = parseInt(id);
       cores = parseInt(cores);
       if (
@@ -105,7 +106,7 @@ module.exports = (function() {
         this.state.message = "Подключен";
         this.state.fileIDs = {}; // обнуляем счетчик кодируемых файлов
         // сообщаем пользователям состояние воркера
-        informAboutWorker("WORKERINFO", this.getInfo());
+        this.emit("workerInfo", this.getInfo());
       });
 
       this.socket.on("disconnect", reason => {
@@ -117,7 +118,7 @@ module.exports = (function() {
         );
         this.releaseWorker();
         outerMethods["releaseFiles"](fileIDs, this.id);
-        informAboutWorker("WORKERINFO", this.getInfo());
+        this.emit("workerInfo", this.getInfo());
       });
 
       this.socket.on("error", err => {
@@ -129,7 +130,7 @@ module.exports = (function() {
         );
         this.releaseWorker();
         outerMethods["releaseFiles"](fileIDs, this.id);
-        informAboutWorker("WORKERINFO", this.getInfo());
+        this.emit("workerInfo", this.getInfo());
       });
 
       // единое событие от воркера внутри которого могут содержаться отдельные объекты
@@ -161,7 +162,7 @@ module.exports = (function() {
                 delete this.state.fileIDs[fileID];
               }
             }
-            informAboutWorker("WORKERINFO", this.getInfo());
+            this.emit("workerInfo", this.getInfo());
           }
           // инъектим в объект data.fileInfo ID воркера
           // это нужно чтобы расчитать в моделе файла
@@ -200,12 +201,13 @@ module.exports = (function() {
           this.updateCategories();
           this.emit("tryProcessNext");
           // оповещаем фронт о ядрах воркера
-          informAboutWorker("WORKERINFO", this.getInfo());
+          this.emit("workerInfo", this.getInfo());
         }
         // инфа о проценте готовности кодирования
         if ("fileProgress" in data) {
-          // в объекте data содержится id файла, progress и опционально part - если стадия = 1
-          outerMethods["updateFileProgressById"](data.fileProgress);
+          // объект fileProgress: key - fileID,
+          // value - Object: key - part<int>, value - progress<int>
+          outerMethods["updateFileProgress"](data.fileProgress);
         }
       });
     }
@@ -274,11 +276,11 @@ module.exports = (function() {
       }
       this.state.fileIDs[fileID] += parts;
       // оповещаем фронт
-      informAboutWorker("WORKERINFO", this.getInfo());
+      this.emit("workerInfo", this.getInfo());
       // используем байнд - нужно передать контекст в функцию,
       // где само хранилище таймеров это объект со своим контекстом
       this.lockCoresTimerId[timerID] = setTimeout(
-        function() {
+        function () {
           // если файл уже был обработан и удален, то минуем вычитание частей
           if (this.state.fileIDs[fileID] !== undefined) {
             this.state.fileIDs[fileID] -= parts;
@@ -287,7 +289,7 @@ module.exports = (function() {
             }
           }
           delete this.lockCoresTimerId[timerID];
-          informAboutWorker("WORKERINFO", this.getInfo());
+          this.emit("workerInfo", this.getInfo());
           this.emit("tryProcessNext");
         }.bind(this),
         lockTime
@@ -316,8 +318,9 @@ module.exports = (function() {
     }
   }
 
-  return new (class {
+  return new(class extends EventEmitter {
     constructor() {
+      super();
       this.storage = [];
       // слушаем изменения общего числа ядер и оповещаем все воркеры
       commonData.on("commonDataChanged", () => {
@@ -349,13 +352,21 @@ module.exports = (function() {
         const options = Object.assign({}, settings.get("worker"), {
           autoConnect: data.autoConnect
         });
-        const newWorker = Object.assign({}, data, { options }, { id });
+        const newWorker = Object.assign({}, data, {
+          options
+        }, {
+          id
+        });
         delete newWorker.autoConnect;
 
         // вешаем слушатель события tryProcessNext, которое будет вызываться каждый раз
         // как у какого-либо воркера изменится состояние
         const nwn = new WorkerNode(newWorker);
+        // вешаем обработчик событий исходящих от экземпляра воркера
         nwn.on("tryProcessNext", this.tryProcessNext.bind(this));
+        nwn.on("workerInfo", data => {
+          this.emit("workerInfo", data);
+        });
         this.storage.push(nwn);
         if (data.autoConnect) {
           this.getWorkerById(id).connect();
@@ -400,11 +411,11 @@ module.exports = (function() {
         }
         currentWorker.options.autoConnect = payload.autoConnect;
         if (currentWorker.state.status === 1) {
-        // делаем реконнект
-        currentWorker.disconnect();
-        setTimeout(() => {
-          currentWorker.connect();
-        }, 2000);
+          // делаем реконнект
+          currentWorker.disconnect();
+          setTimeout(() => {
+            currentWorker.connect();
+          }, 2000);
         }
       } catch (e) {
         console.log("Ошибка в updateWorker", e.message);
@@ -423,10 +434,15 @@ module.exports = (function() {
             autoConnect: worker.autoConnect === 1 ? true : false
           });
           delete worker.autoConnect;
-          const newWorker = Object.assign({}, worker, { options });
+          const newWorker = Object.assign({}, worker, {
+            options
+          });
           // создаем новую воркер ноду и вешаем обработчик
           const nwn = new WorkerNode(newWorker);
           nwn.on("tryProcessNext", this.tryProcessNext.bind(this));
+          nwn.on("workerInfo", data => {
+            this.emit("workerInfo", data);
+          });
           this.storage.push(nwn);
           if (newWorker.options.autoConnect) {
             this.getWorkerById(worker.id).connect();

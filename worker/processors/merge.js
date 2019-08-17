@@ -3,7 +3,6 @@ const ffmpeg = require("ffmpeg-static");
 const FfmpegCommand = require("fluent-ffmpeg");
 const path = require("path");
 const settings = require("../settings");
-const io = require("../socket.io-server");
 
 // Setting paths for FF libraries
 FfmpegCommand.setFfmpegPath(ffmpeg.path);
@@ -25,11 +24,9 @@ module.exports = function merge({ preset, file }) {
       })
       .on("progress", progress => {
         const fp = Math.round((100 * progress.frames) / totalFrames);
-        io.emit("workerResponse", {
-          fileProgress: {
-            id,
-            progress: fp > 100 ? 100 : fp
-          }
+        settings.condition.setProgress(command, {
+          progress: fp > 100 ? 100 : fp,
+          part: -1
         });
       })
       .on("error", (err, stdout, stderr) => {

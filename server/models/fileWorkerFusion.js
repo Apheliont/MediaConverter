@@ -15,8 +15,8 @@ fileModel.addMethod(
 workerModel.addMethod("getFileById", fileModel.getFileById.bind(fileModel));
 workerModel.addMethod("releaseFiles", fileModel.releaseFiles.bind(fileModel));
 workerModel.addMethod(
-  "updateFileProgressById",
-  fileModel.updateFileProgressById.bind(fileModel)
+  "updateFileProgress",
+  fileModel.updateFileProgress.bind(fileModel)
 );
 workerModel.addMethod(
   "getPendingFile",

@@ -15,10 +15,12 @@
                 <v-container grid-list-md>
                   <v-layout column>
                     <v-flex xs12 sm6 md4>
-                      <v-tooltip right color="white">
+                      <v-tooltip right v-model="tooltipHost" color="white">
                         <template v-slot:activator="{ on }">
-                          <span v-on="on">
+                          <span>
                             <v-text-field
+                              append-outer-icon="help_outline"
+                              @click:append-outer="tooltipHost = !tooltipHost"
                               v-model="editedWatcher.host"
                               @input="hasChanged = true"
                               :rules="hostRule"
@@ -31,10 +33,12 @@
                       </v-tooltip>
                     </v-flex>
                     <v-flex xs12 sm6 md4>
-                      <v-tooltip right color="white">
+                      <v-tooltip right v-model="tooltipPort" color="white">
                         <template v-slot:activator="{ on }">
-                          <span v-on="on">
+                          <span>
                             <v-text-field
+                              append-outer-icon="help_outline"
+                              @click:append-outer="tooltipPort = !tooltipPort"
                               v-model="editedWatcher.port"
                               @input="hasChanged = true"
                               :rules="portRule"
@@ -98,6 +102,8 @@ import { mapActions } from "vuex";
 export default {
   data() {
     return {
+      tooltipHost: false,
+      tooltipPort: false,
       dialog: false,
       hasChanged: false,
       valid: false,

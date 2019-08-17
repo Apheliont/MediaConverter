@@ -2,7 +2,6 @@ const ffprobe = require("ffprobe-static");
 const ffmpeg = require("ffmpeg-static");
 const FfmpegCommand = require("fluent-ffmpeg");
 const settings = require("../settings");
-const io = require("../socket.io-server");
 
 // Setting paths for FF libraries
 FfmpegCommand.setFfmpegPath(ffmpeg.path);
@@ -59,13 +58,10 @@ module.exports = function transcode({
         reject(err);
       })
       .on("progress", progress => {
-        const percent = Math.round((100 * progress.frames) / totalFramesInPart);
-        io.emit("workerResponse", {
-          fileProgress: {
-            id,
-            progress: percent <= 100 ? percent : 100,
-            part
-          }
+        const fp = Math.round((100 * progress.frames) / totalFramesInPart);
+        settings.condition.setProgress(command, {
+          progress: fp > 100 ? 100 : fp,
+          part
         });
       })
       .preset(ffmpegCommands)

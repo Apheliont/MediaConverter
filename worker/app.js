@@ -1,4 +1,5 @@
 require("dotenv").config(".env");
+require("./progressUpdater");
 const si = require("systeminformation");
 const settings = require("./settings");
 const io = require("./socket.io-server");

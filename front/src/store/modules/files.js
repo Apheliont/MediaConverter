@@ -81,7 +81,7 @@ export default {
       if (fileIndexToDelete !== -1) {
         state.files.splice(fileIndexToDelete, 1);
       }
-    }
+    },
   },
   actions: {
     uploadFiles({ commit, getters }, filesArr) {
@@ -170,6 +170,14 @@ export default {
     },
     SOCKET_UPDATEFILE({ commit }, payload) {
       commit("updateFile", payload);
+    },
+    SOCKET_UPDATEPROGRESS({commit}, payload) {
+      for (const id of Object.keys(payload)) {
+        commit("updateFile", {
+          id: parseInt(id),
+          progress: parseInt(payload[id])
+        });
+      }
     },
     SOCKET_DELETEFILE({ commit }, id) {
       commit("deleteFile", id);

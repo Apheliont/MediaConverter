@@ -15,10 +15,12 @@
                 <v-container grid-list-md>
                   <v-layout column>
                     <v-flex xs12 sm6 md4>
-                      <v-tooltip right color="white">
+                      <v-tooltip right v-model="tooltipPath" color="white">
                         <template v-slot:activator="{ on }">
-                          <span v-on="on">
+                          <span>
                             <v-text-field
+                              append-outer-icon="help_outline"
+                              @click:append-outer="tooltipPath = !tooltipPath"
                               v-model="editedItem.path"
                               @input="hasChanged = true"
                               :rules="commonRules"
@@ -33,10 +35,12 @@
                     <v-flex xs12 sm6 md4>
                       <v-layout row nowrap>
                         <v-flex>
-                          <v-tooltip left color="white">
+                          <v-tooltip left v-model="tooltipDelay" color="white">
                             <template v-slot:activator="{ on }">
-                              <span v-on="on">
+                              <span>
                                 <v-text-field
+                                  append-outer-icon="help_outline"
+                                  @click:append-outer="tooltipDelay = !tooltipDelay"
                                   v-model.number="editedItem.delay"
                                   @input="hasChanged = true"
                                   :rules="digitalRule"
@@ -48,10 +52,12 @@
                           </v-tooltip>
                         </v-flex>
                         <v-flex>
-                          <v-tooltip right color="white">
+                          <v-tooltip right v-model="tooltipNetSpeed" color="white">
                             <template v-slot:activator="{ on }">
-                              <span v-on="on">
+                              <span>
                                 <v-text-field
+                                  append-outer-icon="help_outline"
+                                  @click:append-outer="tooltipNetSpeed = !tooltipNetSpeed"
                                   v-model.number="editedItem.netSpeed"
                                   @input="hasChanged = true"
                                   :rules="digitalRule"
@@ -120,6 +126,9 @@ import { mapActions } from "vuex";
 export default {
   data() {
     return {
+      tooltipPath: false,
+      tooltipDelay: false,
+      tooltipNetSpeed: false,
       dialog: false,
       hasChanged: false,
       valid: false,
@@ -167,12 +176,12 @@ export default {
         netSpeed: 80,
         category: ""
       },
-      commonRules: [v => (v && v.length > 0) || "Поле не может быть пустым"],
+      commonRules: [v => (v && v.length > 0) || "Не может быть пустым"],
       digitalRule: [
-        v => !!v || "Поле не может быть пустым",
+        v => !!v || "Не может быть пустым",
         v =>
           (Number.isInteger(+v) && Number.isFinite(+v) && +v > 0) ||
-          "Поле должно содержать только цифры"
+          "Разрешены только цифры"
       ]
     };
   },
