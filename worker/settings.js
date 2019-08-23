@@ -74,7 +74,8 @@ module.exports = {
   workerID: undefined,
   physicalCores: 0,
   totalPhysicalCores: 0,
-  sourcePath: undefined,
-  tempFolderName: undefined,
+  sourcePath: "",
+  tempFolderName: "",
+  stashPath: "",
   categories: undefined
 };

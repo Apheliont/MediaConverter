@@ -93,7 +93,6 @@
           </v-card>
         </v-dialog>
       </v-card-title>
-      <v-card-text>
         <v-data-table
           ref="fwpaths-data-table"
           no-data-text
@@ -115,7 +114,6 @@
             </td>
           </template>
         </v-data-table>
-      </v-card-text>
     </v-card>
   </v-flex>
 </template>
@@ -243,7 +241,7 @@ export default {
 
     resize() {
       const viewportHeight = window.innerHeight;
-      const dtHeight = viewportHeight - 280 < 100 ? 100 : viewportHeight - 280;
+      const dtHeight = viewportHeight - 250 < 100 ? 100 : viewportHeight - 250;
       this.$refs["fwpaths-data-table"].$el.style.height = `${dtHeight}px`;
     }
   },

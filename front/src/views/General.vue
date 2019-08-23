@@ -92,6 +92,24 @@
                         <span>Название директории которая будет создана внутри хранилища файлов закачанных через WEB интерфейс. В эту директорию будут помещаться все файлы во время обработки. Обычное название: temp, tmp, transcode_temp,.. и.т.д</span>
                       </v-tooltip>
                     </v-flex>
+                    <v-flex>
+                      <v-tooltip left v-model="tooltipStashPath" color="white">
+                        <template v-slot:activator="{ on }">
+                          <span>
+                            <v-text-field
+                              append-outer-icon="help_outline"
+                              @click:append-outer="tooltipStashPath = !tooltipStashPath"
+                              v-model="tempSettings.stashPath"
+                              @input="hasChanged = true"
+                              :disabled="!isEditing"
+                              :rules="[notEmpty]"
+                              label="Путь для копии файлов необработанных из-за ошибки"
+                            ></v-text-field>
+                          </span>
+                        </template>
+                        <span>Путь до директории куда будет помещен файл, необработанный по причине ошибки. %SOURCEPATH% - подставляет значение пути исходного файла</span>
+                      </v-tooltip>
+                    </v-flex>
                   </v-layout>
                 </v-container>
               </v-card-text>
@@ -123,6 +141,7 @@ export default {
   data: () => ({
     tooltipFolderName: false,
     tooltipUploadPath: false,
+    tooltipStashPath: false,
     snackbar: false,
     isEditing: false,
     valid: false,
@@ -131,6 +150,7 @@ export default {
     tempSettings: {
       uploadPath: "",
       tempFolderName: "",
+      stashPath: "",
       database: {
         database: "",
         host: "",
@@ -141,6 +161,7 @@ export default {
     forReset: {
       uploadPath: "",
       tempFolderName: "",
+      stashPath: "",
       database: {
         database: "",
         host: "",
@@ -180,6 +201,10 @@ export default {
         this.createDataCopy();
         this.hasChanged = false;
         this.isEditing = false;
+
+        this.tooltipFolderName = false;
+        this.tooltipUploadPath = false;
+        this.tooltipStashPath = false;
       } catch (e) {
         this.snackColor = "error";
         this.snackText = e.message;
@@ -193,6 +218,7 @@ export default {
       this.isEditing = false;
       this.tooltipFolderName = false;
       this.tooltipUploadPath = false;
+      this.tooltipStashPath = false;
     }
   },
   created() {

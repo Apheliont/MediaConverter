@@ -3,12 +3,23 @@ const { informClients } = require("./socket.io-server");
 const sendFileInfo = informClients("FILEINFO");
 const sendWorkerInfo = informClients("WORKERINFO");
 
+// кэш для хранения данных файлов для дальнейшей отправки на фронтэнд
+// key - fileID<int>, value - filteredFileData<Object>
+// Map выбрана из-за наличия метода clear
+const fileDataToSend = new Map();
+// кэш для хранения прогресса кодирования
+// key - fileID<int>, value - progress<int>
+const fileProgressToSend = new Map();
+
 
 const updater = createUpdater(fileModel);
 
 // **** обработчики на модель файла ****
-fileModel.on("updateProgress", () => {
-  updater();
+fileModel.on("updateProgress", data => {
+    if ("id" in data) {
+      fileProgressToSend.set(data.id, data)
+      updater();
+    }
 });
 
 fileModel.on("addFile", fileData => {
@@ -20,7 +31,10 @@ fileModel.on("deleteFile", id => {
 });
 
 fileModel.on("updateFile", data => {
-  sendFileInfo("UPDATEFILE", data);
+  if ("id" in data) {
+    fileDataToSend.set(data.id, data)
+    updater();
+  }
 });
 
 // **** обработчики на модель воркера ****
@@ -38,7 +52,7 @@ function createUpdater(fileModel) {
         clearInterval(timerID);
         timerID = null;
       }
-      sendFileInfo("UPDATEPROGRESS", prepareProgressData(fileModel));
+      sendFileInfo("UPDATEFILES", prepareProgressData(fileModel));
     }, TIME_INTERVAL);
   };
 }
@@ -52,13 +66,26 @@ function checkUpdateNecessity(fileModel) {
   }
   return false;
 }
+// возвращает объект где ключи это fileID а значения это объекты
+// с данными файлов
 function prepareProgressData(fileModel) {
-  const result = {}; // key - fileID<int>, value - totalPercent<int>
-  const files = fileModel.getFiles();
-  for (const file of files) {
-    if (file.status === 2) {
-      result[file.id] = file.totalPercent;
+  const result = {};
+  // склеиваем данные о прогрессе и данные об изменении состояния файлов
+  // берем любую Map из 2х, не важно какая из них содержит больше элементов
+  for (const [key, val] of fileDataToSend) {
+    if (fileProgressToSend.has(key)) {
+      result[key] = Object.assign({}, val, fileProgressToSend.get(key));
+      fileProgressToSend.delete(key);
+    } else {
+      result[key] = (Object.assign({}, val));
     }
   }
+  // добавляем оставшиеся данные из 2й map
+  for (const [key, val] of fileProgressToSend) {
+    result[key] = (Object.assign({}, val));
+  }
+  // очищаем кэш
+  fileDataToSend.clear();
+  fileProgressToSend.clear();
   return result;
 }

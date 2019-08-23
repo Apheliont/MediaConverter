@@ -14,11 +14,24 @@ module.exports = (function () {
       super();
       this.coresPerWorker = {}; // key - worker_id, value - кол-во ядер
       this.tempFolderName = settings.get("tempFolderName");
-      // если была изменена tempFolder то надо разослать инфу по всем воркерам
+      this.stashPath = settings.get("stashPath");
+      // если были изменения в общих данных нужно разослать инфу всем
       settings.on("updateSettings", () => {
+        let dataChanged = false;
+
         const newTempFolderName = settings.get("tempFolderName");
+        const newStashPath = settings.get("stashPath");
+
         if (newTempFolderName !== this.tempFolderName) {
           this.tempFolderName = newTempFolderName;
+          dataChanged = true;
+          
+        }
+        if (newStashPath !== this.newStashPath) {
+          this.stashPath = newStashPath;
+          dataChanged = true;
+        }
+        if (dataChanged) {
           this.emit("commonDataChanged");
         }
       });
@@ -32,6 +45,10 @@ module.exports = (function () {
 
     getTempFolderName() {
       return this.tempFolderName;
+    }
+
+    getStashPath() {
+      return this.stashPath;
     }
 
     addWorkerCores({
@@ -239,7 +256,8 @@ module.exports = (function () {
         workerID: this.id,
         totalPhysicalCores: commonData.getTotalCores(),
         sourcePath: this.sourcePath,
-        tempFolderName: commonData.getTempFolderName()
+        tempFolderName: commonData.getTempFolderName(),
+        stashPath: commonData.getStashPath()
       });
     }
 
@@ -308,13 +326,13 @@ module.exports = (function () {
       this.socket.emit("stopConversion", id);
     }
 
-    deleteFiles(fileData) {
-      // fileData это объект у которого 2 или 3 свойства: 1) sourceFile - это объект
-      // у которого 3 поля =) : sourcePath, fileName, extension
-      // 2) tempRootPath - это путь к сгенереной темп папки для конкретного файла
-      // 3) Переменное св-во объект outputFile, оно может быть а может и нет
-      // Если файл был удален пользователем и стадия была 2 - поле присуствует
-      this.socket.emit("deleteFiles", fileData);
+    cleanFiles(data) {
+      // data<Object> 
+      // - stashOriginalFile <bool>
+      // - outputFile ? <fileName<str>, category<int>>
+      // - sourceFile <sourcePath<str>, fileName<str>>
+      // - tempRootPath <str>
+      this.socket.emit("cleanFiles", data);
     }
   }
 

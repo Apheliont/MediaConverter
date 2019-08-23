@@ -22,7 +22,7 @@ module.exports = async function({ file, worker_timerID, file_timerID }) {
     if (
       settings.workerID === undefined ||
       settings.totalPhysicalCores === 0 ||
-      settings.tempFolderName === undefined
+      settings.tempFolderName === ""
     ) {
       await Promise.reject("Состояние воркера не позволяет обрабатывать файлы");
     }

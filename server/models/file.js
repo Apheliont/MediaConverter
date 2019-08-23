@@ -52,8 +52,8 @@ module.exports = (function() {
       this.stage_2 = {
         workerID: undefined
       };
-      this.status = 3; // 0 - OK, 1 - ERR, 2 - ENCODING, 3 - PENDING, 4 - DELETED by USER, 5 - moving
-      this.stage = 0; // Это этап кодирования; 0 - подготавливается, 1 - кодируется, 2 - склеивается
+      this.status = 3; // 0 - OK, 1 - ERR, 2 - ENCODING, 3 - PENDING, 4 - DELETED by USER
+      this.stage = 0; // Это этап кодирования; 0 - подготавливается, 1 - кодируется, 2 - склеивается, 3 - перемещение
       this.duration = undefined;
       this.progressOnStage_1 = [];
       this.totalPercent = 0;
@@ -288,7 +288,7 @@ module.exports = (function() {
     }
   }
 
-  return new class extends EventEmitter {
+  return new (class extends EventEmitter {
     constructor() {
       super();
       this.storage = [];
@@ -389,7 +389,10 @@ module.exports = (function() {
       // вариант дебаунса, чтобы лишний раз не гонять данные по сети
       if (totalPercent !== fileToUpdate.totalPercent) {
         fileToUpdate.totalPercent = totalPercent;
-        this.emit("updateProgress");
+        this.emit("updateProgress", {
+          id,
+          progress: fileToUpdate.totalPercent
+        });
       }
     }
 
@@ -445,8 +448,8 @@ module.exports = (function() {
           Object.keys(fileToDelete["stage_1"].currentTranscode[2])
         ).length === 0
       ) {
-        // // сделать зачистку файлов на ФС
-        // собираем объект в котором будут данные о том что надо стереть
+        // сделать зачистку файлов на ФС
+        // собираем объект в котором будут данные о том что надо удалить
         const fileData = {};
         fileData.sourceFile = {};
         fileData.destinationFile = {};
@@ -464,13 +467,12 @@ module.exports = (function() {
           fileData.outputFile = {};
           fileData.outputFile.category = fileToDelete.category;
           fileData.outputFile.fileName = fileToDelete.fileName;
-          fileData.outputFile.extension = ".mxf";
         }
+        fileData.stashOriginalFile = fileToDelete.status === 1;
 
         fileData.tempRootPath = fileToDelete["stage_0"].tempRootPath;
-        operationalWorker.deleteFiles(fileData);
+        operationalWorker.cleanFiles(fileData);
 
-        const indexOfFile = this.storage.findIndex(file => file.id === id);
         // обновляем инфу о файле перед удалением, это то что пойдет в логи
         fileToDelete.finished_at = this.getFormatedDateTime();
 
@@ -499,10 +501,12 @@ module.exports = (function() {
             })
           })
         );
+
         // ждем выполнения промисов
         Promise.all(asyncOperations)
           .then(() => {
             // удалить из памяти
+            const indexOfFile = this.storage.findIndex(file => file.id === id);
             this.storage.splice(indexOfFile, 1);
             this.emit("deleteFile", id);
           })
@@ -694,5 +698,5 @@ module.exports = (function() {
       }
       this.emit("updateFile", fileToUpdate.filterFileData());
     }
-  };
+  })();
 })();

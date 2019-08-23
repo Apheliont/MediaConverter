@@ -3,7 +3,6 @@ const ffmpeg = require("ffmpeg-static");
 const FfmpegCommand = require("fluent-ffmpeg");
 const path = require("path");
 const settings = require("../settings");
-const io = require("../socket.io-server");
 
 // Setting paths for FF libraries
 FfmpegCommand.setFfmpegPath(ffmpeg.path);

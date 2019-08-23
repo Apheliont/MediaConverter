@@ -14,7 +14,10 @@ async function uploadFile(req, res) {
 
 function getFiles(req, res) {
   const files = fileModel.getFiles();
-  const filteredData = files.map(file => file.filterFileData());
+  const filteredData = {};
+  for (const file of files) {
+    filteredData[file.id] = file.filterFileData();
+  }
   res.status(200).json(filteredData);
 }
 

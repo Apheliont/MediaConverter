@@ -1,6 +1,7 @@
 {
   "uploadPath": "/app/videoSource/",
   "tempFolderName": "Temp",
+  "stashPath": "%SOURCEPATH%/errors",
   "database": {
     "database": "media_converter",
     "user": "root",

@@ -1,4 +1,4 @@
-
+import Vue from "vue";
 export default {
   namespaced: true,
   state: {
@@ -31,7 +31,7 @@ export default {
       ".bmp",
       ".tif"
     ],
-    files: [],
+    files: {}, // key - fileID<string>, value - fileObj<Object>
     uploadPercent: 0,
     xhrObjects: new Set()
   },
@@ -40,7 +40,7 @@ export default {
       return state.allowedExtension;
     },
     files(state) {
-      return state.files;
+      return Object.values(state.files);
     },
     uploadPercent(state) {
       return state.uploadPercent;
@@ -62,45 +62,45 @@ export default {
     setFiles(state, payload) {
       state.files = payload;
     },
-    updateFile(state, payload) {
-      const fileId = payload.id;
-      const fileToUpdate = state.files.find(file => file.id === fileId);
-      if (fileToUpdate) {
-        for (const prop in payload) {
-          fileToUpdate[prop] = payload[prop];
+    updateFiles(state, files) {
+      for (const id of Object.keys(files)) {
+        const fileToUpdate = state.files[id];
+        if (fileToUpdate) {
+          for (const prop in files[id]) {
+            fileToUpdate[prop] = files[id][prop];
+          }
         }
       }
     },
     addFile(state, payload) {
-      state.files.push(payload);
+      Vue.set(state.files, payload.id, payload);
     },
     deleteFile(state, id) {
-      const fileIndexToDelete = state.files.findIndex(
-        file => file.id === id
-      );
-      if (fileIndexToDelete !== -1) {
-        state.files.splice(fileIndexToDelete, 1);
+      if (id in state.files) {
+        Vue.delete(state.files, id);
       }
-    },
+    }
   },
   actions: {
     uploadFiles({ commit, getters }, filesArr) {
-      commit('resetXhrObjects');
+      commit("resetXhrObjects");
       commit("setUploadPercent", 0);
 
       const url = `${process.env.VUE_APP_BACKEND_ADDRESS}/api/files/upload`;
       //вычисляем общий процент закачки
       const arrayOfParts = [];
-      const currentProgress = (arrayOfParts) => {
+      const currentProgress = arrayOfParts => {
         const total = arrayOfParts.reduce((sum, next) => {
           return sum + next;
         }, 0);
         return Math.round((total / filesArr.length) * 100);
-      }
+      };
 
       function sender(file, index) {
         // если такой файл уже есть то не закачиваем
-        if (getters.files.findIndex(fl => fl.fileName === file.fileName) !== -1) {
+        if (
+          getters.files.findIndex(fl => fl.fileName === file.fileName) !== -1
+        ) {
           arrayOfParts[index] = 1;
           commit("setUploadPercent", currentProgress(arrayOfParts));
           return;
@@ -108,10 +108,10 @@ export default {
 
         const formData = new FormData();
         for (let prop of Object.keys(file)) {
-          if (prop === 'index') {
+          if (prop === "index") {
             continue;
           }
-          if (typeof file[prop] === 'object') {
+          if (typeof file[prop] === "object") {
             formData.append(prop, file[prop]);
           } else {
             formData.append(prop, file[prop].toString());
@@ -122,18 +122,17 @@ export default {
         );
 
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', url, true);
-        xhr.setRequestHeader('File-Name', fileNameEncoded);
-
+        xhr.open("POST", url, true);
+        xhr.setRequestHeader("File-Name", fileNameEncoded);
 
         xhr.upload.onloadstart = () => {
           commit("setXhrObject", xhr);
-        }
+        };
 
-        xhr.upload.onprogress = (event) => {
+        xhr.upload.onprogress = event => {
           arrayOfParts[index] = event.loaded / event.total;
           commit("setUploadPercent", currentProgress(arrayOfParts));
-        }
+        };
 
         xhr.send(formData);
       }
@@ -145,22 +144,22 @@ export default {
       try {
         const url = `${process.env.VUE_APP_BACKEND_ADDRESS}/api/files`;
         const result = await fetch(url, {
-          method: 'GET'
+          method: "GET"
         });
         if (result.status !== 200) {
-          throw new Error('Сервер не смог вернуть файлы');
+          throw new Error("Сервер не смог вернуть файлы");
         }
         const files = await result.json();
-        commit('setFiles', files);
-      } catch(e) {
+        commit("setFiles", files);
+      } catch (e) {
         throw e;
       }
     },
     deleteFile(_, id) {
       const url = `${process.env.VUE_APP_BACKEND_ADDRESS}/api/files/${id}`;
       fetch(url, {
-        method: 'DELETE'
-      })
+        method: "DELETE"
+      });
     },
     cancelUpload({ getters }) {
       const xhrs = getters.xhrObjects;
@@ -168,16 +167,8 @@ export default {
         xhr.abort();
       }
     },
-    SOCKET_UPDATEFILE({ commit }, payload) {
-      commit("updateFile", payload);
-    },
-    SOCKET_UPDATEPROGRESS({commit}, payload) {
-      for (const id of Object.keys(payload)) {
-        commit("updateFile", {
-          id: parseInt(id),
-          progress: parseInt(payload[id])
-        });
-      }
+    SOCKET_UPDATEFILES({ commit }, payload) {
+      commit("updateFiles", payload);
     },
     SOCKET_DELETEFILE({ commit }, id) {
       commit("deleteFile", id);
