@@ -1,7 +1,7 @@
 ## MediaConverter
 Программа предназначена для конвертации медиа контента (видео, аудио, изображения) на основании пресетов.  Для ускорения процесса конвертации используются пул обработчиков. Поступающие задания равномерно распределяются между обработчиками, так, чтобы как можно эффективней задействовать ресурсы каждого.
 ### Архитектура ПО
-![Alt text](//https://github.com/Apheliont/MediaConverter/Manual/scheme.jpg "Архитектура")
+![Alt text](//https://github.com/Apheliont/MediaConverter/raw/master/Manual/scheme.jpg "Архитектура")
 #### Назначение модулей
 ПО условно можно рассматривать как совокупность модулей, которые взаимодействуют между собой через API (Application Program Interface – программный интерфейс)
 
@@ -24,6 +24,6 @@
 - Представляет собой SPA(single page application). Это то что видит пользователь зайдя на веб страницу
 
 ### UI
-![Alt text](//https://github.com/Apheliont/MediaConverter/Manual/MainPage.jpg "Главная")
-![Alt text](//https://github.com/Apheliont/MediaConverter/Manual/StatsPage.jpg "Статистика")
-![Alt text](//https://github.com/Apheliont/MediaConverter/Manual/SettingsPage.jpg "Настройки")
+![Alt text](//https://github.com/Apheliont/MediaConverter/raw/master/Manual/MainPage.jpg "Главная")
+![Alt text](//https://github.com/Apheliont/MediaConverter/raw/master/Manual/StatsPage.jpg "Статистика")
+![Alt text](//https://github.com/Apheliont/MediaConverter/raw/master/Manual/SettingsPage.jpg "Настройки")
