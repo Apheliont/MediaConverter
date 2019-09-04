@@ -1,91 +1,151 @@
 /*
- ** Пресет это набор функций для которых нужно написать реализацию
- ** 1) Функция проверки расширения файла.
- ** 2) Функция которая создает объект options на основании метаданных файла.
- **    Объект options это набор свойств которые будут обработаны на следующем этапе
- **    На основании этих св-в создаются конкретные команды для ffmpeg
- ** 3) Функция подготовки файла. Реализует конкретные команды для ffmpeg
- **    на основании объекта options полученного с предыдущего этапа
- ** 4) Функция создающая конкретные команды для ffmpeg для этапа кодирования
- **    по частям, на основе объекта options
- ** 5) Функия создающая конкретные команды для ffmpeg для этапа склейки
- ** 6) Функция возвращающая струку выходного формата вида .mxf...
- ** 7) Функиция возвращающая число кадров на основании длительности
+ ** Пресет это набор функций и св-в для которых нужно написать реализацию
+ ** 1) O_FORMAT - указать расширение выходного файла
+ ** 2) Заполнить массивы AUDIO_EXTENSIONS и/или IMAGE_EXTENSIONS и/или VIDEO_EXTENSIONS 
+ **    расширениями файлов которые разрешены для кодирования и не будут отфильтрованы
+ ** 3) Функция rescueStage. Её реализацию можно не трогать т.к дефолтные значения делают
+ **    свою работу вполне сносно
+ ** 4) Функция analyzeStage принимает на вход объект metadata и расширение файла.
+ **    На основании этих данных нужно сформировать объект options значения которого
+ **    будут проверяться на следующих этапах
+ ** 5) Функия preparationStage. Нужна для подготовки файла перед кодированием по частям
+ **    Этот этап создает промежуточный файл, в котором будут проставлены ключевые кадры 
+ **    в местах в соотвествии с длиной файла и общим кол-ом CPU ресурсов в системе
+ ** 6) Функция transcodeStage. Это этап кодирования по частям. Здесь задаются все параметры
+ **    выходного файла
+ ** 7) Функиция mergeStage. Служит для финальной склейки файла. Нужно избегать
+ **    любых параметров которые могут привести к перекодированию частей на этой стадии
+ **    Дефолтная реализация подходит для большинства случаев
  */
-function checkExstension(extension) {
-  const allowedExtension = [
-    // определите расширения файлов: ".mp4", ".avi"...
-  ];
-  return allowedExtension.includes(extension.toLowerCase());
-}
 
-function totalFrames(duration) {
-  return duration * YOUR_FRAME_RATE; // вместо YOUR_FRAME_RATE укажите свое число кадров/сек;
-}
+// Написать реализацию обязательно!
+const O_FORMAT = ""; // формат выходного файла, например - ".mxf" 
+const O_FPS = 0; // указать FPS выходного файла, например 25
+const AUDIO_EXTENSIONS = []; // [".mp3", ".wav"]
+const IMAGE_EXTENSIONS = []; // [".jpg", ".bmp"]
+const VIDEO_EXTENSIONS = []; // [".avi", ".mpeg"]
 
-function outputFormat() {
-  return ".XXX"; // укажите свой формат на выходе
+// необязательные поля
+const O_VIDEO_CODEC = "";
+const O_VIDEO_BITRATE = 0;
+const O_VIDEO_PIXEL = "";
+const O_WIDTH = 0;
+const O_HEIGHT = 0;
+const O_AUDIO_SRATE = 0;
+const O_AUDIO_CODEC = "";
+const O_AUDIO_BITRATE = 0;
+const IMAGE_DURATION = 0;
+
+
+//-----------------------------------RESCUE-------------------------------------------
+// попытка дать файлу второй шанс прежде чем выбросить ошибку.
+// Частое явление файлы с поврежденными метаданными, недокачанные и т.д
+// у которых отсутствует поле duration. Это претендент на вылет с ошибкой
+function rescueStage({ inputExtension }) {
+  const outputExtension = inputExtension;
+  const inputOptions = [];
+  const outputOptions = ["-vcodec copy", "-acodec copy"]; // скорей всего здесь ничего менять не будем
+  const ffmpegCommands = ffmpegCommandBuilder({ inputOptions, outputOptions });
+  return {
+    ffmpegCommands,
+    outputExtension
+  };
 }
 // -----------------------------------ANALYZE-----------------------------------------
-// принимает метаданные файла после анализа ffprobe и расширение, возвращает объект options и
-// св-во duration
+// принимает метаданные файла после анализа ffprobe и расширение,
+// возвращает объект options и св-во duration
 function analyzeStage({ metadata, extension }) {
-  const duration = metadata.format.duration;
-  // заполняйте объект options любыми данными которые необходимы на основании метаданных
-  // и расширения файла
+  let duration = metadata.format.duration;
+  // ищем все косяки исходного файла и регистрирум их в options
   const options = {};
   return { options, duration };
 }
 // -------------------------PREPARE-----------------------------
 // готовит outputOptions, inputOptions
 // и extension(расширение на выходе этой стадии)
-function preparationStage({ options, duration, inputExtension }) {
-  // на основе данных в объекте options, который был подготовлен на этапе analyze
-  // написать конкретные команды ffmpega и разместить их в массивах outputOptions и/или
-  // inputOptions. Внимание! Эти комманды для этапа подготовки файла!
-  const outputOptions = [];
+function preparationStage({
+  options,
+  duration,
+  inputExtension
+}) {
   const inputOptions = [];
-  const outputExtension = inputExtension; // напишите свою логику
+  const outputOptions = [];
+  const outputExtension = "";
 
 
+  const ffmpegCommands = ffmpegCommandBuilder({ inputOptions, outputOptions });
   return {
-    outputExtension,
-    inputOptions,
-    outputOptions
+    ffmpegCommands,
+    outputExtension
   };
 }
 //---------------------------------TRANSCODE STAGE ---------------------------
 function transcodeStage({ options, duration }) {
-    // на основе данных объекта options, который был подготовлен на этапе analyze
-  // написать конкретные команды ffmpega и разместить их в массивах outputOptions и/или
-  // inputOptions. Внимание! Эти комманды для этапа кодирования!
+  let input;
   const outputOptions = [];
   const inputOptions = [];
   const totalFramesInPart = totalFrames(duration);
 
-  
-  return {
+
+  const ffmpegCommands = ffmpegCommandBuilder({
+    input,
     inputOptions,
-    outputOptions,
+    outputOptions
+  });
+
+  return {
+    ffmpegCommands,
     totalFramesInPart
   };
 }
 // -----------------------------MERGE STAGE------------------------------------
 
-function mergeStage(duration) {
-  // как правило здесь ничего кастомного прописывать не нужно, т.к этот этап
-  // предполагает только склейку файлов
-  const outputOptions = ["-map 0", "-c copy"];
-  
+function mergeStage({ duration }) {
+  const outputOptions = ["-map 0", "-c copy"]; // скорей всего здесь ничего менять не надо
+
+  const ffmpegCommands = ffmpegCommandBuilder({ outputOptions });
   return {
-    outputOptions,
+    ffmpegCommands,
     totalFrames: totalFrames(duration)
   };
 }
 
+// --------------------------- ВСЁ ЧТО НИЖЕ НЕ ТРОГАТЬ! =)----------------------------------
+function checkExstension(extension) {
+  const allowedExtension = [
+    ...AUDIO_EXTENSIONS,
+    ...IMAGE_EXTENSIONS,
+    ...VIDEO_EXTENSIONS
+  ];
+  return allowedExtension.includes(extension.toLowerCase());
+}
+
+function ffmpegCommandBuilder({
+  input,
+  inputOptions = [],
+  outputOptions = []
+}) {
+  if (input !== undefined) {
+    return function(ffmpeg) {
+      ffmpeg
+        .input(input)
+        .inputOptions(inputOptions)
+        .outputOptions(outputOptions);
+    };
+  }
+  return function(ffmpeg) {
+    ffmpeg.inputOptions(inputOptions).outputOptions(outputOptions);
+  };
+}
+
+function totalFrames(duration) {
+  return duration * O_FPS;
+}
+
 module.exports = {
+  rescueStage,
   checkExstension,
-  outputFormat,
+  O_FORMAT,
   analyzeStage,
   preparationStage,
   transcodeStage,

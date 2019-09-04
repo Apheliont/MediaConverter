@@ -25,6 +25,7 @@ export default {
       ".wav",
       ".ogg",
       ".mp3",
+      ".m4a",
       ".png",
       ".jpg",
       ".jpeg",

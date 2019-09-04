@@ -23,7 +23,7 @@ const O_AUDIO_SRATE = 48000;
 const O_AUDIO_CODEC = "pcm_s24le";
 const O_AUDIO_BITRATE = 1152;
 const IMAGE_DURATION = 5;
-const AUDIO_EXTENSIONS = [".wav", ".mp3", ".ogg", ".flac"];
+const AUDIO_EXTENSIONS = [".wav", ".mp3", ".ogg", ".flac", ".m4a"];
 const IMAGE_EXTENSIONS = [".jpeg", ".jpg", ".png", ".bmp", ".tif"];
 const VIDEO_EXTENSIONS = [
   ".3gp",
