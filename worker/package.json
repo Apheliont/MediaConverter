@@ -16,7 +16,7 @@
     "fluent-ffmpeg": "^2.1.2",
     "nodemon": "^1.18.10",
     "socket.io": "2.2.0",
-    "systeminformation": "^4.9.0",
+    "systeminformation": "^5.3.1",
     "rimraf": "2.6.3"
   }
 }
